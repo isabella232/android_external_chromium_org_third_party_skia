@@ -1277,7 +1277,7 @@ void SkBitmap::WriteRawPixels(SkWriteBuffer* buffer, const SkBitmap& bitmap) {
     const size_t snugRB = info.width() * info.bytesPerPixel();
     const char* src = (const char*)bitmap.getPixels();
     const size_t ramRB = bitmap.rowBytes();
-    
+
     buffer->write32(SkToU32(snugRB));
     info.flatten(*buffer);
 
@@ -1329,12 +1329,12 @@ bool SkBitmap::ReadRawPixels(SkReadBuffer* buffer, SkBitmap* bitmap) {
         }
         SkASSERT(srcRow == dstRow); // first row does not need to be moved
     }
-    
+
     SkAutoTUnref<SkColorTable> ctable;
     if (buffer->readBool()) {
         ctable.reset(SkNEW_ARGS(SkColorTable, (*buffer)));
     }
-    
+
     SkAutoTUnref<SkPixelRef> pr(SkMallocPixelRef::NewWithData(info, info.minRowBytes(),
                                                               ctable.get(), data.get()));
     bitmap->setConfig(pr->info());
@@ -1347,28 +1347,7 @@ enum {
     SERIALIZE_PIXELTYPE_REF_DATA
 };
 
-#ifdef SK_SUPPORT_LEGACY_BITMAPFLATTEN
-void SkBitmap::flatten(SkWriteBuffer& buffer) const {
-    fInfo.flatten(buffer);
-    buffer.writeInt(fRowBytes);
-
-    if (fPixelRef) {
-        if (fPixelRef->getFactory()) {
-            buffer.writeInt(SERIALIZE_PIXELTYPE_REF_DATA);
-            buffer.writeInt(fPixelRefOrigin.fX);
-            buffer.writeInt(fPixelRefOrigin.fY);
-            buffer.writeFlattenable(fPixelRef);
-            return;
-        }
-        // if we get here, we can't record the pixels
-        buffer.writeInt(SERIALIZE_PIXELTYPE_NONE);
-    } else {
-        buffer.writeInt(SERIALIZE_PIXELTYPE_NONE);
-    }
-}
-#endif
-
-void SkBitmap::unflatten(SkReadBuffer& buffer) {
+void SkBitmap::legacyUnflatten(SkReadBuffer& buffer) {
     this->reset();
 
     SkImageInfo info;

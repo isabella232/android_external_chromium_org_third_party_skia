@@ -16,7 +16,7 @@
 #include "SkGradientShader.h"
 #include "SkImageDecoder.h"
 #include "SkImageEncoder.h"
-#include "SkImageGenerator.h"
+#include "SkImageGeneratorPriv.h"
 #include "SkImagePriv.h"
 #include "SkOSFile.h"
 #include "SkPoint.h"
@@ -455,7 +455,7 @@ DEF_TEST(WebP, reporter) {
 
     bool success = SkInstallDiscardablePixelRef(
         SkDecodingImageGenerator::Create(encoded,
-            SkDecodingImageGenerator::Options()), &bm, NULL);
+            SkDecodingImageGenerator::Options()), &bm);
 
     REPORTER_ASSERT(reporter, success);
     if (!success) {
@@ -491,18 +491,8 @@ static SkPixelRef* install_pixel_ref(SkBitmap* bitmap,
     SkASSERT(stream->unique());
     SkColorType colorType = bitmap->colorType();
     SkDecodingImageGenerator::Options opts(sampleSize, ditherImage, colorType);
-    SkAutoTDelete<SkImageGenerator> gen(
-        SkDecodingImageGenerator::Create(stream, opts));
-    SkImageInfo info;
-    if ((NULL == gen.get()) || !gen->getInfo(&info)) {
-        return NULL;
-    }
-    SkDiscardableMemory::Factory* factory = NULL;
-    if (info.getSafeSize(info.minRowBytes()) < (32 * 1024)) {
-        // only use ashmem for large images, since mmaps come at a price
-        factory = SkGetGlobalDiscardableMemoryPool();
-    }
-    if (SkInstallDiscardablePixelRef(gen.detach(), bitmap, factory)) {
+    if (SkInstallDiscardablePixelRef(
+                SkDecodingImageGenerator::Create(stream, opts), bitmap)) {
         return bitmap->pixelRef();
     }
     return NULL;
@@ -594,14 +584,13 @@ static void test_options(skiatest::Reporter* reporter,
             return;
         }
         success = SkInstallDiscardablePixelRef(
-            SkDecodingImageGenerator::Create(encodedData, opts), &bm, NULL);
+            SkDecodingImageGenerator::Create(encodedData, opts), &bm);
     } else {
         if (NULL == encodedStream) {
             return;
         }
         success = SkInstallDiscardablePixelRef(
-            SkDecodingImageGenerator::Create(encodedStream->duplicate(), opts),
-            &bm, NULL);
+            SkDecodingImageGenerator::Create(encodedStream->duplicate(), opts), &bm);
     }
     if (!success) {
         if (opts.fUseRequestedColorType

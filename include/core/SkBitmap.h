@@ -24,8 +24,6 @@ class SkRegion;
 class SkString;
 class GrTexture;
 
-//#define SK_SUPPORT_LEGACY_BITMAPFLATTEN
-
 /** \class SkBitmap
 
     The SkBitmap class specifies a raster bitmap. A bitmap has an integer width
@@ -649,11 +647,6 @@ public:
      */
     bool deepCopyTo(SkBitmap* dst) const;
 
-#ifdef SK_SUPPORT_LEGACY_BUILDMIPMAP
-    SK_ATTR_DEPRECATED("use setFilterLevel on SkPaint")
-    void buildMipMap(bool forceRebuild = false) {}
-#endif
-
 #ifdef SK_BUILD_FOR_ANDROID
     bool hasHardwareMipMap() const {
         return (fFlags & kHasHardwareMipMap_Flag) != 0;
@@ -692,21 +685,6 @@ public:
     */
     bool extractAlpha(SkBitmap* dst, const SkPaint* paint, Allocator* allocator,
                       SkIPoint* offset) const;
-
-#ifdef SK_SUPPORT_LEGACY_BITMAPFLATTEN
-    /** The following two functions provide the means to both flatten and
-        unflatten the bitmap AND its pixels into the provided buffer.
-        It is recommended that you do not call these functions directly,
-        but instead call the write/readBitmap functions on the respective
-        buffers as they can optimize the recording process and avoid recording
-        duplicate bitmaps and pixelRefs.
-     */
-    void flatten(SkWriteBuffer&) const;
-#else
-private:
-#endif
-    void unflatten(SkReadBuffer&);
-public:
 
     SkDEBUGCODE(void validate() const;)
 
@@ -803,7 +781,9 @@ private:
     */
     void freePixels();
     void updatePixelsFromRef() const;
-    
+
+    void legacyUnflatten(SkReadBuffer&);
+
     static void WriteRawPixels(SkWriteBuffer*, const SkBitmap&);
     static bool ReadRawPixels(SkReadBuffer*, SkBitmap*);
 
