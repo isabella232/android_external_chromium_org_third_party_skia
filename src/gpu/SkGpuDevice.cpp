@@ -34,6 +34,7 @@
 #include "SkSurface.h"
 #include "SkTLazy.h"
 #include "SkUtils.h"
+#include "SkVertState.h"
 #include "SkErrorInternals.h"
 
 #define CACHE_COMPATIBLE_DEVICE_TEXTURES 1
@@ -379,6 +380,7 @@ SK_COMPILE_ASSERT(SkShader::kLast_BitmapType == 6, shader_type_mismatch);
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
 SkBitmap::Config SkGpuDevice::config() const {
     if (NULL == fRenderTarget) {
         return SkBitmap::kNo_Config;
@@ -387,6 +389,7 @@ SkBitmap::Config SkGpuDevice::config() const {
     bool isOpaque;
     return grConfig2skConfig(fRenderTarget->config(), &isOpaque);
 }
+#endif
 
 void SkGpuDevice::clear(SkColor color) {
     SkIRect rect = SkIRect::MakeWH(this->width(), this->height());
@@ -738,7 +741,7 @@ SkBitmap wrap_texture(GrTexture* texture) {
     texture->asImageInfo(&info);
 
     SkBitmap result;
-    result.setConfig(info);
+    result.setInfo(info);
     result.setPixelRef(SkNEW_ARGS(SkGrPixelRef, (info, texture)))->unref();
     return result;
 }
@@ -1628,6 +1631,31 @@ void SkGpuDevice::drawVertices(const SkDraw& draw, SkCanvas::VertexMode vmode,
                               const SkPaint& paint) {
     CHECK_SHOULD_DRAW(draw, false);
 
+    // If both textures and vertex-colors are NULL, strokes hairlines with the paint's color.
+    if ((NULL == texs || NULL == paint.getShader()) && NULL == colors) {
+        texs = NULL;
+        SkPaint copy(paint);
+        copy.setStyle(SkPaint::kStroke_Style);
+        copy.setStrokeWidth(0);
+
+        VertState       state(vertexCount, indices, indexCount);
+        VertState::Proc vertProc = state.chooseProc(vmode);
+
+        SkPoint* pts = new SkPoint[vertexCount * 6];
+        int i = 0;
+        while (vertProc(&state)) {
+            pts[i] = vertices[state.f0];
+            pts[i + 1] = vertices[state.f1];
+            pts[i + 2] = vertices[state.f1];
+            pts[i + 3] = vertices[state.f2];
+            pts[i + 4] = vertices[state.f2];
+            pts[i + 5] = vertices[state.f0];
+            i += 6;
+        }
+        draw.drawPoints(SkCanvas::kLines_PointMode, i, pts, copy, true);
+        return;
+    }
+
     GrPaint grPaint;
     // we ignore the shader if texs is null.
     if (NULL == texs) {
@@ -1818,7 +1846,7 @@ void SkGpuDevice::EXPERIMENTAL_optimize(SkPicture* picture) {
 
 static void wrap_texture(GrTexture* texture, int width, int height, SkBitmap* result) {
     SkImageInfo info = SkImageInfo::MakeN32Premul(width, height);
-    result->setConfig(info);
+    result->setInfo(info);
     result->setPixelRef(SkNEW_ARGS(SkGrPixelRef, (info, texture)))->unref();
 }
 

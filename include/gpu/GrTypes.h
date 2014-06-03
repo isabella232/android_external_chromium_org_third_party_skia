@@ -281,8 +281,16 @@ enum GrPixelConfig {
      * Premultiplied. Byte order is b,g,r,a.
      */
     kBGRA_8888_GrPixelConfig,
+    /** 
+     * ETC1 Compressed Data
+     */
+    kETC1_GrPixelConfig,
+    /**
+     * LATC/RGTC/3Dc/BC4 Compressed Data
+     */
+    kLATC_GrPixelConfig,
 
-    kLast_GrPixelConfig = kBGRA_8888_GrPixelConfig
+    kLast_GrPixelConfig = kLATC_GrPixelConfig
 };
 static const int kGrPixelConfigCnt = kLast_GrPixelConfig + 1;
 
@@ -297,6 +305,18 @@ static const int kGrPixelConfigCnt = kLast_GrPixelConfig + 1;
 #else
     #error "SK_*32_SHIFT values must correspond to GL_BGRA or GL_RGBA format."
 #endif
+
+// Returns true if the pixel config is a GPU-specific compressed format
+// representation.
+static inline bool GrPixelConfigIsCompressed(GrPixelConfig config) {
+    switch (config) {
+        case kETC1_GrPixelConfig:
+        case kLATC_GrPixelConfig:
+            return true;
+        default:
+            return false;
+    }
+}
 
 // Returns true if the pixel config is 32 bits per pixel
 static inline bool GrPixelConfigIs8888(GrPixelConfig config) {
@@ -340,6 +360,7 @@ static inline size_t GrBytesPerPixel(GrPixelConfig config) {
 
 static inline bool GrPixelConfigIsOpaque(GrPixelConfig config) {
     switch (config) {
+        case kETC1_GrPixelConfig:
         case kRGB_565_GrPixelConfig:
             return true;
         default:
@@ -620,18 +641,24 @@ enum GrGLBackendState {
 };
 
 /**
- * The compressed texture formats that may be supported by the renderer.
- * Make sure to check for the required capabilities using
- * GrDrawTargetCaps::compressedTextureSupport
- */
-enum GrCompressedFormat {
-    kETC1_GrCompressedFormat,
-    kETC2_GrCompressedFormat,
-    kDXT1_GrCompressedFormat,
+ * Returns the data size for the given compressed pixel config
+ */ 
+static inline size_t GrCompressedFormatDataSize(GrPixelConfig config,
+                                                int width, int height) {
+    SkASSERT(GrPixelConfigIsCompressed(config));
 
-    kLast_GrCompressedFormat = kDXT1_GrCompressedFormat
-};
-static const int kGrCompressedFormatCount = kLast_GrCompressedFormat + 1;
+    switch (config) {
+        case kLATC_GrPixelConfig:
+        case kETC1_GrPixelConfig:
+            SkASSERT((width & 3) == 0);
+            SkASSERT((height & 3) == 0);
+            return (width >> 2) * (height >> 2) * 8;
+
+        default:
+            SkFAIL("Unknown compressed pixel config");
+            return 4 * width * height;
+    }
+}
 
 /**
  * This value translates to reseting all the context state for any backend.

@@ -1002,6 +1002,11 @@ public:
     };
 
     /** Draw the array of vertices, interpreted as triangles (based on mode).
+
+        If both textures and vertex-colors are NULL, it strokes hairlines with
+        the paint's color. This behavior is a useful debugging mode to visualize
+        the mesh.
+
         @param vmode How to interpret the array of vertices
         @param vertexCount The number of points in the vertices array (and
                     corresponding texs and colors arrays if non-null)
@@ -1506,5 +1511,17 @@ private:
     SkImageInfo fInfo;
     size_t      fRowBytes;
 };
+
+static inline SkCanvas::SaveFlags operator|(const SkCanvas::SaveFlags lhs,
+                                            const SkCanvas::SaveFlags rhs) {
+    return static_cast<SkCanvas::SaveFlags>(static_cast<int>(lhs) | static_cast<int>(rhs));
+}
+
+static inline SkCanvas::SaveFlags& operator|=(SkCanvas::SaveFlags& lhs,
+                                              const SkCanvas::SaveFlags rhs) {
+    lhs = lhs | rhs;
+    return lhs;
+}
+
 
 #endif

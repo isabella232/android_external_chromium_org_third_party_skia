@@ -271,7 +271,7 @@ GrStencilBuffer* GrContext::findStencilBuffer(int width, int height,
 static void stretch_image(void* dst,
                           int dstW,
                           int dstH,
-                          void* src,
+                          const void* src,
                           int srcW,
                           int srcH,
                           size_t bpp) {
@@ -283,12 +283,10 @@ static void stretch_image(void* dst,
     size_t dstXLimit = dstW*bpp;
     for (int j = 0; j < dstH; ++j) {
         SkFixed x = dx >> 1;
-        void* srcRow = (uint8_t*)src + (y>>16)*srcW*bpp;
-        void* dstRow = (uint8_t*)dst + j*dstW*bpp;
+        const uint8_t* srcRow = reinterpret_cast<const uint8_t *>(src) + (y>>16)*srcW*bpp;
+        uint8_t* dstRow = reinterpret_cast<uint8_t *>(dst) + j*dstW*bpp;
         for (size_t i = 0; i < dstXLimit; i += bpp) {
-            memcpy((uint8_t*) dstRow + i,
-                   (uint8_t*) srcRow + (x>>16)*bpp,
-                   bpp);
+            memcpy(dstRow + i, srcRow + (x>>16)*bpp, bpp);
             x += dx;
         }
         y += dy;
@@ -309,7 +307,7 @@ extern const GrVertexAttrib gVertexAttribs[] = {
 // the current hardware. Resize the texture to be a POT
 GrTexture* GrContext::createResizedTexture(const GrTextureDesc& desc,
                                            const GrCacheID& cacheID,
-                                           void* srcData,
+                                           const void* srcData,
                                            size_t rowBytes,
                                            bool filter) {
     SkAutoTUnref<GrTexture> clampedTexture(this->findAndRefTexture(desc, cacheID, NULL));
@@ -362,6 +360,10 @@ GrTexture* GrContext::createResizedTexture(const GrTextureDesc& desc,
         // no longer need to clamp at min RT size.
         rtDesc.fWidth  = GrNextPow2(desc.fWidth);
         rtDesc.fHeight = GrNextPow2(desc.fHeight);
+
+        // We shouldn't be resizing a compressed texture.
+        SkASSERT(!GrPixelConfigIsCompressed(desc.fConfig));
+
         size_t bpp = GrBytesPerPixel(desc.fConfig);
         SkAutoSMalloc<128*128*4> stretchedPixels(bpp * rtDesc.fWidth * rtDesc.fHeight);
         stretch_image(stretchedPixels.get(), rtDesc.fWidth, rtDesc.fHeight,
@@ -379,18 +381,21 @@ GrTexture* GrContext::createResizedTexture(const GrTextureDesc& desc,
 GrTexture* GrContext::createTexture(const GrTextureParams* params,
                                     const GrTextureDesc& desc,
                                     const GrCacheID& cacheID,
-                                    void* srcData,
+                                    const void* srcData,
                                     size_t rowBytes,
                                     GrResourceKey* cacheKey) {
     GrResourceKey resourceKey = GrTextureImpl::ComputeKey(fGpu, params, desc, cacheID);
 
     GrTexture* texture;
     if (GrTextureImpl::NeedsResizing(resourceKey)) {
+        // We do not know how to resize compressed textures.
+        SkASSERT(!GrPixelConfigIsCompressed(desc.fConfig));
+
         texture = this->createResizedTexture(desc, cacheID,
                                              srcData, rowBytes,
                                              GrTextureImpl::NeedsBilerp(resourceKey));
     } else {
-        texture= fGpu->createTexture(desc, srcData, rowBytes);
+        texture = fGpu->createTexture(desc, srcData, rowBytes);
     }
 
     if (NULL != texture) {
@@ -609,7 +614,7 @@ GrRenderTarget* GrContext::wrapBackendRenderTarget(const GrBackendRenderTargetDe
 bool GrContext::supportsIndex8PixelConfig(const GrTextureParams* params,
                                           int width, int height) const {
     const GrDrawTargetCaps* caps = fGpu->caps();
-    if (!caps->eightBitPaletteSupport()) {
+    if (!caps->isConfigTexturable(kIndex_8_GrPixelConfig)) {
         return false;
     }
 

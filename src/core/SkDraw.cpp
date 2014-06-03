@@ -26,6 +26,7 @@
 #include "SkStroke.h"
 #include "SkTLazy.h"
 #include "SkUtils.h"
+#include "SkVertState.h"
 
 #include "SkAutoKern.h"
 #include "SkBitmapProcShader.h"
@@ -1215,9 +1216,8 @@ void SkDraw::drawBitmapAsMask(const SkBitmap& bitmap,
         // now draw our bitmap(src) into mask(dst), transformed by the matrix
         {
             SkBitmap    device;
-            device.setConfig(SkBitmap::kA8_Config, mask.fBounds.width(),
-                             mask.fBounds.height(), mask.fRowBytes);
-            device.setPixels(mask.fImage);
+            device.installPixels(SkImageInfo::MakeA8(mask.fBounds.width(), mask.fBounds.height()),
+                                 mask.fImage, mask.fRowBytes);
 
             SkCanvas c(device);
             // need the unclipped top/left for the translate
@@ -1665,9 +1665,8 @@ void SkDraw1Glyph::blitMaskAsSprite(const SkMask& mask) const {
     SkASSERT(SkMask::kARGB32_Format == mask.fFormat);
 
     SkBitmap bm;
-    bm.setConfig(SkBitmap::kARGB_8888_Config,
-                 mask.fBounds.width(), mask.fBounds.height(), mask.fRowBytes);
-    bm.setPixels((SkPMColor*)mask.fImage);
+    bm.installPixels(SkImageInfo::MakeN32Premul(mask.fBounds.width(), mask.fBounds.height()),
+                     (SkPMColor*)mask.fImage, mask.fRowBytes);
 
     fDraw->drawSprite(bm, mask.fBounds.x(), mask.fBounds.y(), *fPaint);
 }
@@ -2210,133 +2209,6 @@ void SkDraw::drawTextOnPath(const char text[], size_t byteLength,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct VertState {
-    int f0, f1, f2;
-
-    VertState(int vCount, const uint16_t indices[], int indexCount)
-            : fIndices(indices) {
-        fCurrIndex = 0;
-        if (indices) {
-            fCount = indexCount;
-        } else {
-            fCount = vCount;
-        }
-    }
-
-    typedef bool (*Proc)(VertState*);
-    Proc chooseProc(SkCanvas::VertexMode mode);
-
-private:
-    int             fCount;
-    int             fCurrIndex;
-    const uint16_t* fIndices;
-
-    static bool Triangles(VertState*);
-    static bool TrianglesX(VertState*);
-    static bool TriangleStrip(VertState*);
-    static bool TriangleStripX(VertState*);
-    static bool TriangleFan(VertState*);
-    static bool TriangleFanX(VertState*);
-};
-
-bool VertState::Triangles(VertState* state) {
-    int index = state->fCurrIndex;
-    if (index + 3 > state->fCount) {
-        return false;
-    }
-    state->f0 = index + 0;
-    state->f1 = index + 1;
-    state->f2 = index + 2;
-    state->fCurrIndex = index + 3;
-    return true;
-}
-
-bool VertState::TrianglesX(VertState* state) {
-    const uint16_t* indices = state->fIndices;
-    int index = state->fCurrIndex;
-    if (index + 3 > state->fCount) {
-        return false;
-    }
-    state->f0 = indices[index + 0];
-    state->f1 = indices[index + 1];
-    state->f2 = indices[index + 2];
-    state->fCurrIndex = index + 3;
-    return true;
-}
-
-bool VertState::TriangleStrip(VertState* state) {
-    int index = state->fCurrIndex;
-    if (index + 3 > state->fCount) {
-        return false;
-    }
-    state->f2 = index + 2;
-    if (index & 1) {
-        state->f0 = index + 1;
-        state->f1 = index + 0;
-    } else {
-        state->f0 = index + 0;
-        state->f1 = index + 1;
-    }
-    state->fCurrIndex = index + 1;
-    return true;
-}
-
-bool VertState::TriangleStripX(VertState* state) {
-    const uint16_t* indices = state->fIndices;
-    int index = state->fCurrIndex;
-    if (index + 3 > state->fCount) {
-        return false;
-    }
-    state->f2 = indices[index + 2];
-    if (index & 1) {
-        state->f0 = indices[index + 1];
-        state->f1 = indices[index + 0];
-    } else {
-        state->f0 = indices[index + 0];
-        state->f1 = indices[index + 1];
-    }
-    state->fCurrIndex = index + 1;
-    return true;
-}
-
-bool VertState::TriangleFan(VertState* state) {
-    int index = state->fCurrIndex;
-    if (index + 3 > state->fCount) {
-        return false;
-    }
-    state->f0 = 0;
-    state->f1 = index + 1;
-    state->f2 = index + 2;
-    state->fCurrIndex = index + 1;
-    return true;
-}
-
-bool VertState::TriangleFanX(VertState* state) {
-    const uint16_t* indices = state->fIndices;
-    int index = state->fCurrIndex;
-    if (index + 3 > state->fCount) {
-        return false;
-    }
-    state->f0 = indices[0];
-    state->f1 = indices[index + 1];
-    state->f2 = indices[index + 2];
-    state->fCurrIndex = index + 1;
-    return true;
-}
-
-VertState::Proc VertState::chooseProc(SkCanvas::VertexMode mode) {
-    switch (mode) {
-        case SkCanvas::kTriangles_VertexMode:
-            return fIndices ? TrianglesX : Triangles;
-        case SkCanvas::kTriangleStrip_VertexMode:
-            return fIndices ? TriangleStripX : TriangleStrip;
-        case SkCanvas::kTriangleFan_VertexMode:
-            return fIndices ? TriangleFanX : TriangleFan;
-        default:
-            return NULL;
-    }
-}
-
 typedef void (*HairProc)(const SkPoint&, const SkPoint&, const SkRasterClip&,
                          SkBlitter*);
 
@@ -2613,7 +2485,7 @@ void SkDraw::drawVertices(SkCanvas::VertexMode vmode, int count,
             SkScan::FillTriangle(tmp, *fRC, blitter.get());
         }
     } else {
-        // no colors[] and no texture
+        // no colors[] and no texture, stroke hairlines with paint's color.
         HairProc hairProc = ChooseHairProc(paint.isAntiAlias());
         const SkRasterClip& clip = *fRC;
         while (vertProc(&state)) {
@@ -2799,8 +2671,8 @@ static void draw_into_mask(const SkMask& mask, const SkPath& devPath,
     SkMatrix        matrix;
     SkPaint         paint;
 
-    bm.setConfig(SkBitmap::kA8_Config, mask.fBounds.width(), mask.fBounds.height(), mask.fRowBytes);
-    bm.setPixels(mask.fImage);
+    bm.installPixels(SkImageInfo::MakeA8(mask.fBounds.width(), mask.fBounds.height()),
+                     mask.fImage, mask.fRowBytes);
 
     clip.setRect(SkIRect::MakeWH(mask.fBounds.width(), mask.fBounds.height()));
     matrix.setTranslate(-SkIntToScalar(mask.fBounds.fLeft),

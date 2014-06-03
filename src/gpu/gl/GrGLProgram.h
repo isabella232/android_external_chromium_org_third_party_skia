@@ -60,9 +60,9 @@ public:
     /**
      * Gets the GL program ID for this program.
      */
-    GrGLuint programID() const { return fProgramID; }
+    GrGLuint programID() const { return fBuilderOutput.fProgramID; }
 
-    bool hasVertexShader() const { return fHasVertexShader; }
+    bool hasVertexShader() const { return fBuilderOutput.fHasVertexShader; }
 
     /**
      * Some GL state that is relevant to programs is not stored per-program. In particular color
@@ -164,39 +164,12 @@ public:
 private:
     typedef GrGLUniformManager::UniformHandle UniformHandle;
 
-    // handles for uniforms (aside from per-effect samplers)
-    struct UniformHandles {
-        UniformHandle       fViewMatrixUni;
-        UniformHandle       fRTAdjustmentUni;
-        UniformHandle       fColorUni;
-        UniformHandle       fCoverageUni;
+    GrGLProgram(GrGpuGL*,
+                const GrGLProgramDesc&,
+                GrGLUniformManager*,
+                const GrGLShaderBuilder::GenProgramOutput&);
 
-        // We use the render target height to provide a y-down frag coord when specifying
-        // origin_upper_left is not supported.
-        UniformHandle       fRTHeightUni;
-
-        // Uniforms for computing texture coords to do the dst-copy lookup
-        UniformHandle       fDstCopyTopLeftUni;
-        UniformHandle       fDstCopyScaleUni;
-        UniformHandle       fDstCopySamplerUni;
-    };
-
-    GrGLProgram(GrGpuGL* gpu,
-                const GrGLProgramDesc& desc,
-                const GrEffectStage* colorStages[],
-                const GrEffectStage* coverageStages[]);
-
-    bool succeeded() const { return 0 != fProgramID; }
-
-    /**
-     * This is the heavy initialization routine for building a GLProgram. colorStages and
-     * coverageStages correspond to the output of GrGLProgramDesc::Build().
-     */
-    bool genProgram(GrGLShaderBuilder* builder,
-                    const GrEffectStage* colorStages[],
-                    const GrEffectStage* coverageStages[]);
-
-    // Sets the texture units for samplers
+    // Sets the texture units for samplers.
     void initSamplerUniforms();
 
     // Helper for setData(). Makes GL calls to specify the initial color when there is not
@@ -210,26 +183,18 @@ private:
     // Helper for setData() that sets the view matrix and loads the render target height uniform
     void setMatrixAndRenderTargetHeight(const GrDrawState&);
 
-    // GL program ID
-    GrGLuint                    fProgramID;
-
     // these reflect the current values of uniforms (GL uniform values travel with program)
-    MatrixState                       fMatrixState;
-    GrColor                           fColor;
-    GrColor                           fCoverage;
-    int                               fDstCopyTexUnit;
+    MatrixState                         fMatrixState;
+    GrColor                             fColor;
+    GrColor                             fCoverage;
+    int                                 fDstCopyTexUnit;
 
-    SkAutoTDelete<GrGLProgramEffects> fColorEffects;
-    SkAutoTDelete<GrGLProgramEffects> fCoverageEffects;
+    GrGLShaderBuilder::GenProgramOutput fBuilderOutput;
 
-    GrGLProgramDesc                   fDesc;
-    GrGpuGL*                          fGpu;
+    GrGLProgramDesc                     fDesc;
+    GrGpuGL*                            fGpu;
 
-    GrGLUniformManager                fUniformManager;
-    UniformHandles                    fUniformHandles;
-
-    bool                              fHasVertexShader;
-    int                               fNumTexCoordSets;
+    SkAutoTUnref<GrGLUniformManager>    fUniformManager;
 
     typedef SkRefCnt INHERITED;
 };

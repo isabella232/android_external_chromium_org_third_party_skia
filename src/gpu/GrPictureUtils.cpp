@@ -41,10 +41,7 @@ public:
         fInfo.fHasNestedLayers = false;
         fInfo.fIsNested = (2 == fSaveLayerDepth);
 
-        fEmptyBitmap.setConfig(SkImageInfo::Make(fInfo.fSize.fWidth,
-                                                 fInfo.fSize.fHeight,
-                                                 kUnknown_SkColorType,
-                                                 kIgnore_SkAlphaType));
+        fEmptyBitmap.setInfo(SkImageInfo::MakeUnknown(fInfo.fSize.fWidth, fInfo.fSize.fHeight));
         fAccelData = accelData;
         fAlreadyDrawn = false;
     }
@@ -54,9 +51,11 @@ public:
     virtual int width() const SK_OVERRIDE { return fInfo.fSize.width(); }
     virtual int height() const SK_OVERRIDE { return fInfo.fSize.height(); }
     virtual bool isOpaque() const SK_OVERRIDE { return false; }
+#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
     virtual SkBitmap::Config config() const SK_OVERRIDE {
         return SkBitmap::kNo_Config;
     }
+#endif
     virtual SkImageInfo imageInfo() const SK_OVERRIDE {
         return fEmptyBitmap.info();
     }
