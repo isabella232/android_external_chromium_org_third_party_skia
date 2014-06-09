@@ -13,6 +13,7 @@
         'bench_timer',
         'flags.gyp:flags',
         'jsoncpp.gyp:jsoncpp',
+        'etc1.gyp:libetc1',
       ],
       'sources': [
         '../bench/ResultsWriter.cpp',
@@ -38,7 +39,6 @@
           {
             'libraries': [
               '-lskia',
-              '-lcutils',
             ],
           },
         ],

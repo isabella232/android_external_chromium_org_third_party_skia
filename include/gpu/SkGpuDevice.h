@@ -82,7 +82,9 @@ public:
         return NULL == fRenderTarget ? false
                                      : kRGB_565_GrPixelConfig == fRenderTarget->config();
     }
+#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
     virtual SkBitmap::Config config() const SK_OVERRIDE;
+#endif
 
     virtual void clear(SkColor color) SK_OVERRIDE;
     virtual void drawPaint(const SkDraw&, const SkPaint& paint) SK_OVERRIDE;
@@ -150,11 +152,11 @@ protected:
     virtual bool onWritePixels(const SkImageInfo&, const void*, size_t, int, int) SK_OVERRIDE;
 
     /**  PRIVATE / EXPERIMENTAL -- do not call */
-    virtual void EXPERIMENTAL_optimize(SkPicture* picture) SK_OVERRIDE;
+    virtual void EXPERIMENTAL_optimize(const SkPicture* picture) SK_OVERRIDE;
     /**  PRIVATE / EXPERIMENTAL -- do not call */
-    virtual void EXPERIMENTAL_purge(SkPicture* picture) SK_OVERRIDE;
+    virtual void EXPERIMENTAL_purge(const SkPicture* picture) SK_OVERRIDE;
     /**  PRIVATE / EXPERIMENTAL -- do not call */
-    virtual bool EXPERIMENTAL_drawPicture(SkCanvas* canvas, SkPicture* picture) SK_OVERRIDE;
+    virtual bool EXPERIMENTAL_drawPicture(SkCanvas* canvas, const SkPicture* picture) SK_OVERRIDE;
 
 private:
     GrContext*      fContext;

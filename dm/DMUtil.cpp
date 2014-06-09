@@ -35,7 +35,7 @@ void DrawPicture(SkPicture* picture, SkBitmap* bitmap) {
     SkASSERT(picture != NULL);
     SkASSERT(bitmap != NULL);
     SkCanvas canvas(*bitmap);
-    canvas.drawPicture(*picture);
+    canvas.drawPicture(picture);
     canvas.flush();
 }
 
@@ -84,7 +84,11 @@ unsigned MaxComponentDifference(const SkBitmap& a, const SkBitmap& b) {
 }
 
 bool BitmapsEqual(const SkBitmap& a, const SkBitmap& b) {
-    return a.info() == b.info() && 0 == MaxComponentDifference(a, b);
+    if (a.info() != b.info()) {
+        return false;
+    }
+    const SkAutoLockPixels lockA(a), lockB(b);
+    return 0 == memcmp(a.getPixels(), b.getPixels(), a.getSize());
 }
 
 }  // namespace DM

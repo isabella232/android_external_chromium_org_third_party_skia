@@ -159,7 +159,9 @@ public:
 
     virtual int width() const SK_OVERRIDE;
     virtual int height() const SK_OVERRIDE;
+#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
     virtual SkBitmap::Config config() const SK_OVERRIDE;
+#endif
     virtual bool isOpaque() const SK_OVERRIDE;
     virtual SkImageInfo imageInfo() const SK_OVERRIDE;
 
@@ -435,9 +437,11 @@ int SkDeferredDevice::height() const {
     return immediateDevice()->height();
 }
 
+#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
 SkBitmap::Config SkDeferredDevice::config() const {
     return immediateDevice()->config();
 }
+#endif
 
 bool SkDeferredDevice::isOpaque() const {
     return immediateDevice()->isOpaque();
@@ -932,7 +936,7 @@ void SkDeferredCanvas::onDrawTextOnPath(const void* text, size_t byteLength, con
     this->recordedDrawCommand();
 }
 
-void SkDeferredCanvas::drawPicture(SkPicture& picture) {
+void SkDeferredCanvas::onDrawPicture(const SkPicture* picture) {
     this->drawingCanvas()->drawPicture(picture);
     this->recordedDrawCommand();
 }
@@ -947,13 +951,6 @@ void SkDeferredCanvas::drawVertices(VertexMode vmode, int vertexCount,
     this->drawingCanvas()->drawVertices(vmode, vertexCount, vertices, texs, colors, xmode,
                                         indices, indexCount, paint);
     this->recordedDrawCommand();
-}
-
-SkBounder* SkDeferredCanvas::setBounder(SkBounder* bounder) {
-    this->drawingCanvas()->setBounder(bounder);
-    this->INHERITED::setBounder(bounder);
-    this->recordedDrawCommand();
-    return bounder;
 }
 
 SkDrawFilter* SkDeferredCanvas::setDrawFilter(SkDrawFilter* filter) {

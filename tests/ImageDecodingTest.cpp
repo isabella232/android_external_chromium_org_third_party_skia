@@ -54,6 +54,9 @@ static bool skip_image_format(SkImageDecoder::Format format) {
         // decoders do not, so skip them as well.
         case SkImageDecoder::kICO_Format:
         case SkImageDecoder::kBMP_Format:
+        // KTX is a Texture format so it's not particularly clear how to 
+        // decode the alpha from it.
+        case SkImageDecoder::kKTX_Format:
         // The rest of these are opaque.
         case SkImageDecoder::kPKM_Format:
         case SkImageDecoder::kWBMP_Format:
@@ -509,7 +512,7 @@ DEF_TEST(ImprovedBitmapFactory, reporter) {
         SkStream::NewFromFile(path.c_str()));
     if (sk_exists(path.c_str())) {
         SkBitmap bm;
-        SkAssertResult(bm.setConfig(SkImageInfo::MakeN32Premul(1, 1)));
+        SkAssertResult(bm.setInfo(SkImageInfo::MakeN32Premul(1, 1)));
         REPORTER_ASSERT(reporter,
             NULL != install_pixel_ref(&bm, stream.detach(), 1, true));
         SkAutoLockPixels alp(bm);

@@ -84,6 +84,8 @@
       'dependencies': [
         'core.gyp:*',
         'utils.gyp:*',
+        'etc1.gyp:libetc1',
+        'ktx.gyp:libSkKTX',
       ],
       'includes': [
         'gpu.gypi',

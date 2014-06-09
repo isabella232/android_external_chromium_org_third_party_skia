@@ -14,15 +14,15 @@
 #include "SkTDArray.h"
 #include "Test.h"
 
-static const int kWidth = 1000;
-static const int kHeight = 1000;
+static const int kWidth = 1024;
+static const int kHeight = 1024;
 
 // Basic test of a GrRectanizer-derived class' functionality
 static void test_rectanizer_basic(skiatest::Reporter* reporter, GrRectanizer* rectanizer) {
     REPORTER_ASSERT(reporter, kWidth == rectanizer->width());
     REPORTER_ASSERT(reporter, kHeight == rectanizer->height());
 
-    GrIPoint16 loc;
+    SkIPoint16 loc;
 
     REPORTER_ASSERT(reporter, rectanizer->addRect(50, 50, &loc));
     REPORTER_ASSERT(reporter, rectanizer->percentFull() > 0.0f);
@@ -35,7 +35,7 @@ static void test_rectanizer_inserts(skiatest::Reporter*,
                                     const SkTDArray<SkISize>& rects) {
     int i;
     for (i = 0; i < rects.count(); ++i) {
-        GrIPoint16 loc;
+        SkIPoint16 loc;
         if (!rectanizer->addRect(rects[i].fWidth, rects[i].fHeight, &loc)) {
             break;
         }
@@ -59,16 +59,16 @@ static void test_pow2(skiatest::Reporter* reporter, const SkTDArray<SkISize>& re
 }
 
 DEF_GPUTEST(GpuRectanizer, reporter, factory) {
-    SkTDArray<SkISize> fRects;
+    SkTDArray<SkISize> rects;
     SkRandom rand;
 
     for (int i = 0; i < 50; i++) {
-        fRects.push(SkISize::Make(rand.nextRangeU(1, kWidth / 2),
-                                  rand.nextRangeU(1, kHeight / 2)));
+        rects.push(SkISize::Make(rand.nextRangeU(1, kWidth / 2),
+                                 rand.nextRangeU(1, kHeight / 2)));
     }
 
-    test_skyline(reporter, fRects);
-    test_pow2(reporter, fRects);
+    test_skyline(reporter, rects);
+    test_pow2(reporter, rects);
 }
 
 #endif
