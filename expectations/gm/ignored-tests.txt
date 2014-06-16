@@ -38,25 +38,6 @@
 # I will likely just delete the GM.
 canvas-layer-state
 
-# humper:
-# Needs rebaselining after faster GPU blur patch lands
-megalooper_0x0
-megalooper_1x4
-megalooper_4x1
-bleed
-blurquickreject
-blurrects
-bigblurs
-
-# These are part of picture-version 27 -- removal of SkUnitMapp
-# just need to be rebaselined
-scaled_tilemode_bitmap
-scaled_tilemodes_npot
-scaled_tilemodes
-tilemode_bitmap
-tilemodes_npot
-tilemodes
-
 # Added by kevin.petit@arm.com for https://codereview.chromium.org/317193003
 # Only S32A_D565_Blend is causing mismatches
 shadertext3
@@ -66,3 +47,15 @@ coloremoji
 # Added by robertphillips for https://codereview.chromium.org/316143003/
 # This CL actually fixes this GM's image
 distantclip
+
+# Added by egdaniel for https://codereview.chromium.org/326103002/
+# This CL may cause minor changes to gpu dashing
+dashing
+dashing2
+dashing3
+dashing4
+dashcubics
+
+# dandov: Fix for bitmap shader by taking into account if the bitmap is alpha only
+# https://codereview.chromium.org/318923005/
+bitmapshaders

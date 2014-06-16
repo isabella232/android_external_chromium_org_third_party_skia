@@ -14,26 +14,14 @@
 #include "SkTemplates.h"
 #include "SkCanvas.h"
 
-static SkBitmap::Config gDeviceConfig = SkBitmap::kNo_Config;
-
-SkBitmap::Config SkImageDecoder::GetDeviceConfig()
-{
-    return gDeviceConfig;
-}
-
-void SkImageDecoder::SetDeviceConfig(SkBitmap::Config config)
-{
-    gDeviceConfig = config;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 SkImageDecoder::SkImageDecoder()
     : fPeeker(NULL)
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     , fChooser(NULL)
+#endif
     , fAllocator(NULL)
     , fSampleSize(1)
-    , fDefaultPref(SkBitmap::kNo_Config)
+    , fDefaultPref(kUnknown_SkColorType)
     , fDitherImage(true)
     , fUsePrefTable(false)
     , fSkipWritingZeroes(false)
@@ -43,7 +31,9 @@ SkImageDecoder::SkImageDecoder()
 
 SkImageDecoder::~SkImageDecoder() {
     SkSafeUnref(fPeeker);
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     SkSafeUnref(fChooser);
+#endif
     SkSafeUnref(fAllocator);
 }
 
@@ -52,7 +42,9 @@ void SkImageDecoder::copyFieldsToOther(SkImageDecoder* other) {
         return;
     }
     other->setPeeker(fPeeker);
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     other->setChooser(fChooser);
+#endif
     other->setAllocator(fAllocator);
     other->setSampleSize(fSampleSize);
     if (fUsePrefTable) {
@@ -107,10 +99,12 @@ SkImageDecoder::Peeker* SkImageDecoder::setPeeker(Peeker* peeker) {
     return peeker;
 }
 
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
 SkImageDecoder::Chooser* SkImageDecoder::setChooser(Chooser* chooser) {
     SkRefCnt_SafeAssign(fChooser, chooser);
     return chooser;
 }
+#endif
 
 SkBitmap::Allocator* SkImageDecoder::setAllocator(SkBitmap::Allocator* alloc) {
     SkRefCnt_SafeAssign(fAllocator, alloc);
@@ -124,6 +118,7 @@ void SkImageDecoder::setSampleSize(int size) {
     fSampleSize = size;
 }
 
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
 // TODO: change Chooser virtual to take colorType, so we can stop calling SkColorTypeToBitmapConfig
 //
 bool SkImageDecoder::chooseFromOneChoice(SkColorType colorType, int width, int height) const {
@@ -136,6 +131,7 @@ bool SkImageDecoder::chooseFromOneChoice(SkColorType colorType, int width, int h
     chooser->inspect(0, SkColorTypeToBitmapConfig(colorType), width, height);
     return chooser->choose() == 0;
 }
+#endif
 
 bool SkImageDecoder::allocPixelRef(SkBitmap* bitmap,
                                    SkColorTable* ctable) const {
@@ -149,13 +145,14 @@ void SkImageDecoder::setPrefConfigTable(const PrefConfigTable& prefTable) {
     fPrefTable = prefTable;
 }
 
-// TODO: use colortype in fPrefTable, fDefaultPref and GetDeviceConfig()
-//       so we can stop using SkBitmapConfigToColorType()
+// TODO: use colortype in fPrefTable, fDefaultPref so we can stop using SkBitmapConfigToColorType()
 //
 SkColorType SkImageDecoder::getPrefColorType(SrcDepth srcDepth, bool srcHasAlpha) const {
-    SkBitmap::Config config = SkBitmap::kNo_Config;
+    SkColorType ct = fDefaultPref;
 
     if (fUsePrefTable) {
+        // Until we kill or change the PrefTable, we have to go into Config land for a moment.
+        SkBitmap::Config config = SkBitmap::kNo_Config;
         switch (srcDepth) {
             case kIndex_SrcDepth:
                 config = srcHasAlpha ? fPrefTable.fPrefFor_8Index_YesAlpha_src
@@ -169,21 +166,16 @@ SkColorType SkImageDecoder::getPrefColorType(SrcDepth srcDepth, bool srcHasAlpha
                                      : fPrefTable.fPrefFor_8bpc_NoAlpha_src;
                 break;
         }
-    } else {
-        config = fDefaultPref;
+        // now return to SkColorType land
+        ct = SkBitmapConfigToColorType(config);
     }
-
-    if (SkBitmap::kNo_Config == config) {
-        config = SkImageDecoder::GetDeviceConfig();
-    }
-    return SkBitmapConfigToColorType(config);
+    return ct;
 }
 
-bool SkImageDecoder::decode(SkStream* stream, SkBitmap* bm,
-                            SkBitmap::Config pref, Mode mode) {
+bool SkImageDecoder::decode(SkStream* stream, SkBitmap* bm, SkColorType pref, Mode mode) {
     // we reset this to false before calling onDecode
     fShouldCancelDecode = false;
-    // assign this, for use by getPrefConfig(), in case fUsePrefTable is false
+    // assign this, for use by getPrefColorType(), in case fUsePrefTable is false
     fDefaultPref = pref;
 
     // pass a temporary bitmap, so that if we return false, we are assured of
@@ -196,18 +188,16 @@ bool SkImageDecoder::decode(SkStream* stream, SkBitmap* bm,
     return true;
 }
 
-bool SkImageDecoder::decodeSubset(SkBitmap* bm, const SkIRect& rect,
-                                  SkBitmap::Config pref) {
+bool SkImageDecoder::decodeSubset(SkBitmap* bm, const SkIRect& rect, SkColorType pref) {
     // we reset this to false before calling onDecodeSubset
     fShouldCancelDecode = false;
-    // assign this, for use by getPrefConfig(), in case fUsePrefTable is false
+    // assign this, for use by getPrefColorType(), in case fUsePrefTable is false
     fDefaultPref = pref;
 
     return this->onDecodeSubset(bm, rect);
 }
 
-bool SkImageDecoder::buildTileIndex(SkStreamRewindable* stream,
-                                    int *width, int *height) {
+bool SkImageDecoder::buildTileIndex(SkStreamRewindable* stream, int *width, int *height) {
     // we reset this to false before calling onBuildTileIndex
     fShouldCancelDecode = false;
 
@@ -219,7 +209,7 @@ bool SkImageDecoder::cropBitmap(SkBitmap *dst, SkBitmap *src, int sampleSize,
                                 int srcX, int srcY) {
     int w = width / sampleSize;
     int h = height / sampleSize;
-    if (src->config() == SkBitmap::kIndex8_Config) {
+    if (src->colorType() == kIndex_8_SkColorType) {
         // kIndex8 does not allow drawing via an SkCanvas, as is done below.
         // Instead, use extractSubset. Note that this shares the SkPixelRef and
         // SkColorTable.
@@ -263,8 +253,8 @@ bool SkImageDecoder::cropBitmap(SkBitmap *dst, SkBitmap *src, int sampleSize,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-bool SkImageDecoder::DecodeFile(const char file[], SkBitmap* bm,
-                            SkBitmap::Config pref,  Mode mode, Format* format) {
+bool SkImageDecoder::DecodeFile(const char file[], SkBitmap* bm, SkColorType pref,  Mode mode,
+                                Format* format) {
     SkASSERT(file);
     SkASSERT(bm);
 
@@ -278,8 +268,8 @@ bool SkImageDecoder::DecodeFile(const char file[], SkBitmap* bm,
     return false;
 }
 
-bool SkImageDecoder::DecodeMemory(const void* buffer, size_t size, SkBitmap* bm,
-                          SkBitmap::Config pref, Mode mode, Format* format) {
+bool SkImageDecoder::DecodeMemory(const void* buffer, size_t size, SkBitmap* bm, SkColorType pref,
+                                  Mode mode, Format* format) {
     if (0 == size) {
         return false;
     }
@@ -289,9 +279,8 @@ bool SkImageDecoder::DecodeMemory(const void* buffer, size_t size, SkBitmap* bm,
     return SkImageDecoder::DecodeStream(&stream, bm, pref, mode, format);
 }
 
-bool SkImageDecoder::DecodeStream(SkStreamRewindable* stream, SkBitmap* bm,
-                                  SkBitmap::Config pref, Mode mode,
-                                  Format* format) {
+bool SkImageDecoder::DecodeStream(SkStreamRewindable* stream, SkBitmap* bm, SkColorType pref,
+                                  Mode mode, Format* format) {
     SkASSERT(stream);
     SkASSERT(bm);
 

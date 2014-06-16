@@ -263,6 +263,9 @@
                     'cflags': [
                       '-mdspr2',
                     ],
+                    'defines': [
+                      '__MIPS_HAVE_DSPR2',
+                    ],
                   }],
                 ],
               }],
@@ -673,7 +676,6 @@
         'SK_SUPPORT_LEGACY_LAYERRASTERIZER_API=1',
         'SK_SUPPORT_LEGACY_COMPATIBLEDEVICE_CONFIG=1',
         'SK_SUPPORT_LEGACY_GETTOTALCLIP=1',
-        'SK_SUPPORT_LEGACY_DEVICE_CONFIG=1',
       ],
     }],
 

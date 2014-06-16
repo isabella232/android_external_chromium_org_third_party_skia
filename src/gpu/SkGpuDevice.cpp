@@ -17,6 +17,7 @@
 #include "GrDistanceFieldTextContext.h"
 #include "GrLayerCache.h"
 #include "GrPictureUtils.h"
+#include "GrStrokeInfo.h"
 
 #include "SkGrTexturePixelRef.h"
 
@@ -352,17 +353,6 @@ SK_COMPILE_ASSERT(SkShader::kLast_BitmapType == 6, shader_type_mismatch);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
-SkBitmap::Config SkGpuDevice::config() const {
-    if (NULL == fRenderTarget) {
-        return SkBitmap::kNo_Config;
-    }
-
-    bool isOpaque;
-    return grConfig2skConfig(fRenderTarget->config(), &isOpaque);
-}
-#endif
-
 void SkGpuDevice::clear(SkColor color) {
     SkIRect rect = SkIRect::MakeWH(this->width(), this->height());
     fContext->clear(&rect, SkColor2GrColor(color), true, fRenderTarget);
@@ -396,9 +386,14 @@ void SkGpuDevice::drawPoints(const SkDraw& draw, SkCanvas::PointMode mode,
     }
 
     if (paint.getPathEffect() && 2 == count && SkCanvas::kLines_PointMode == mode) {
-        if (GrDashingEffect::DrawDashLine(pts, paint, this->context())) {
-            return;
-        }
+        GrStrokeInfo strokeInfo(paint, SkPaint::kStroke_Style);
+        GrPaint grPaint;
+        SkPaint2GrPaintShader(this->context(), paint, true, &grPaint);
+        SkPath path;
+        path.moveTo(pts[0]);
+        path.lineTo(pts[1]);
+        fContext->drawPath(grPaint, path, strokeInfo);
+        return;
     }
 
     // we only handle hairlines and paints without path effects or mask filters,
@@ -439,9 +434,11 @@ void SkGpuDevice::drawRect(const SkDraw& draw, const SkRect& rect,
                    (paint.getStrokeJoin() == SkPaint::kRound_Join ||
                     (paint.getStrokeJoin() == SkPaint::kBevel_Join && rect.isEmpty()));
     // another two reasons we might need to call drawPath...
-    if (paint.getMaskFilter() || paint.getPathEffect()) {
+
+    if (paint.getMaskFilter()) {
         usePath = true;
     }
+
     if (!usePath && paint.isAntiAlias() && !fContext->getMatrix().rectStaysRect()) {
 #if defined(SHADER_AA_FILL_RECT) || !defined(IGNORE_ROT_AA_RECT_OPT)
         if (doStroke) {
@@ -458,6 +455,13 @@ void SkGpuDevice::drawRect(const SkDraw& draw, const SkRect& rect,
         usePath = true;
     }
 
+    GrStrokeInfo strokeInfo(paint);
+
+    const SkPathEffect* pe = paint.getPathEffect();
+    if (!usePath && NULL != pe && !strokeInfo.isDashed()) {
+        usePath = true;
+    }
+
     if (usePath) {
         SkPath path;
         path.addRect(rect);
@@ -467,13 +471,8 @@ void SkGpuDevice::drawRect(const SkDraw& draw, const SkRect& rect,
 
     GrPaint grPaint;
     SkPaint2GrPaintShader(this->context(), paint, true, &grPaint);
-
-    if (!doStroke) {
-        fContext->drawRect(grPaint, rect);
-    } else {
-        SkStrokeRec stroke(paint);
-        fContext->drawRect(grPaint, rect, &stroke);
-    }
+  
+    fContext->drawRect(grPaint, rect, &strokeInfo);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -485,8 +484,8 @@ void SkGpuDevice::drawRRect(const SkDraw& draw, const SkRRect& rect,
 
     GrPaint grPaint;
     SkPaint2GrPaintShader(this->context(), paint, true, &grPaint);
-
-    SkStrokeRec stroke(paint);
+    
+    GrStrokeInfo strokeInfo(paint);
     if (paint.getMaskFilter()) {
         // try to hit the fast path for drawing filtered round rects
 
@@ -505,7 +504,8 @@ void SkGpuDevice::drawRRect(const SkDraw& draw, const SkRRect& rect,
                         return;
                     }
                     if (paint.getMaskFilter()->directFilterRRectMaskGPU(fContext, &grPaint,
-                                                                        stroke, devRRect)) {
+                                                                        strokeInfo.getStrokeRec(),
+                                                                        devRRect)) {
                         return;
                     }
                 }
@@ -515,14 +515,26 @@ void SkGpuDevice::drawRRect(const SkDraw& draw, const SkRRect& rect,
 
     }
 
-    if (paint.getMaskFilter() || paint.getPathEffect()) {
+    bool usePath = false;
+
+    if (paint.getMaskFilter()) {
+        usePath = true;
+    } else {
+        const SkPathEffect* pe = paint.getPathEffect();
+        if (NULL != pe && !strokeInfo.isDashed()) {
+            usePath = true;
+        }
+    }
+
+
+    if (usePath) {
         SkPath path;
         path.addRRect(rect);
         this->drawPath(draw, path, paint, NULL, true);
         return;
     }
-
-    fContext->drawRRect(grPaint, rect, stroke);
+    
+    fContext->drawRRect(grPaint, rect, strokeInfo);
 }
 
 void SkGpuDevice::drawDRRect(const SkDraw& draw, const SkRRect& outer,
@@ -558,10 +570,17 @@ void SkGpuDevice::drawOval(const SkDraw& draw, const SkRect& oval,
     CHECK_FOR_ANNOTATION(paint);
     CHECK_SHOULD_DRAW(draw, false);
 
+    GrStrokeInfo strokeInfo(paint);
+
     bool usePath = false;
     // some basic reasons we might need to call drawPath...
-    if (paint.getMaskFilter() || paint.getPathEffect()) {
+    if (paint.getMaskFilter()) {
         usePath = true;
+    } else {
+        const SkPathEffect* pe = paint.getPathEffect();
+        if (NULL != pe && !strokeInfo.isDashed()) {
+            usePath = true;
+        }
     }
 
     if (usePath) {
@@ -573,9 +592,8 @@ void SkGpuDevice::drawOval(const SkDraw& draw, const SkRect& oval,
 
     GrPaint grPaint;
     SkPaint2GrPaintShader(this->context(), paint, true, &grPaint);
-    SkStrokeRec stroke(paint);
 
-    fContext->drawOval(grPaint, oval, stroke);
+    fContext->drawOval(grPaint, oval, strokeInfo);
 }
 
 #include "SkMaskFilter.h"
@@ -651,7 +669,7 @@ bool draw_with_mask_filter(GrContext* context, const SkPath& devPath,
 bool create_mask_GPU(GrContext* context,
                      const SkRect& maskRect,
                      const SkPath& devPath,
-                     const SkStrokeRec& stroke,
+                     const GrStrokeInfo& strokeInfo,
                      bool doAA,
                      GrAutoScratchTexture* mask) {
     GrTextureDesc desc;
@@ -696,7 +714,7 @@ bool create_mask_GPU(GrContext* context,
     SkMatrix translate;
     translate.setTranslate(-maskRect.fLeft, -maskRect.fTop);
     am.set(context, translate);
-    context->drawPath(tempPaint, devPath, stroke);
+    context->drawPath(tempPaint, devPath, strokeInfo);
     return true;
 }
 
@@ -740,22 +758,25 @@ void SkGpuDevice::drawPath(const SkDraw& draw, const SkPath& origSrcPath,
     // at this point we're done with prePathMatrix
     SkDEBUGCODE(prePathMatrix = (const SkMatrix*)0x50FF8001;)
 
-    SkStrokeRec stroke(paint);
+    GrStrokeInfo strokeInfo(paint);
     SkPathEffect* pathEffect = paint.getPathEffect();
     const SkRect* cullRect = NULL;  // TODO: what is our bounds?
-    if (pathEffect && pathEffect->filterPath(effectPath.init(), *pathPtr, &stroke,
+    SkStrokeRec* strokePtr = strokeInfo.getStrokeRecPtr();
+    if (pathEffect && pathEffect->filterPath(effectPath.init(), *pathPtr, strokePtr,
                                              cullRect)) {
         pathPtr = effectPath.get();
         pathIsMutable = true;
+        strokeInfo.removeDash();
     }
 
+    const SkStrokeRec& stroke = strokeInfo.getStrokeRec();
     if (paint.getMaskFilter()) {
         if (!stroke.isHairlineStyle()) {
             SkPath* strokedPath = pathIsMutable ? pathPtr : tmpPath.init();
             if (stroke.applyToPath(strokedPath, *pathPtr)) {
                 pathPtr = strokedPath;
                 pathIsMutable = true;
-                stroke.setFillStyle();
+                strokeInfo.setFillStyle();
             }
         }
 
@@ -790,7 +811,7 @@ void SkGpuDevice::drawPath(const SkDraw& draw, const SkPath& origSrcPath,
 
             GrAutoScratchTexture mask;
 
-            if (create_mask_GPU(fContext, maskRect, *devPathPtr, stroke,
+            if (create_mask_GPU(fContext, maskRect, *devPathPtr, strokeInfo,
                                 grPaint.isAntiAlias(), &mask)) {
                 GrTexture* filtered;
 
@@ -819,12 +840,12 @@ void SkGpuDevice::drawPath(const SkDraw& draw, const SkPath& origSrcPath,
         // GPU path fails
         SkPaint::Style style = stroke.isHairlineStyle() ? SkPaint::kStroke_Style :
                                                           SkPaint::kFill_Style;
-        draw_with_mask_filter(fContext, *devPathPtr, paint.getMaskFilter(), *draw.fClip, &grPaint,
-                              style);
+        draw_with_mask_filter(fContext, *devPathPtr, paint.getMaskFilter(),
+                              *draw.fClip, &grPaint, style);
         return;
     }
 
-    fContext->drawPath(grPaint, *pathPtr, stroke);
+    fContext->drawPath(grPaint, *pathPtr, strokeInfo);
 }
 
 static const int kBmpSmallTileSize = 1 << 10;
@@ -1355,8 +1376,10 @@ void SkGpuDevice::internalDrawBitmap(const SkBitmap& bitmap,
     // the rest from the SkPaint.
     GrPaint grPaint;
     grPaint.addColorEffect(effect);
-    bool alphaOnly = !(SkBitmap::kA8_Config == bitmap.config());
-    SkPaint2GrPaintNoShader(this->context(), paint, alphaOnly, false, &grPaint);
+    bool alphaOnly = !(kAlpha_8_SkColorType == bitmap.colorType());
+    GrColor grColor = (alphaOnly) ? SkColor2GrColorJustAlpha(paint.getColor()) :
+                                    SkColor2GrColor(paint.getColor());
+    SkPaint2GrPaintNoShader(this->context(), paint, grColor, false, &grPaint);
 
     fContext->drawRectToRect(grPaint, dstRect, paintRect, NULL);
 }
@@ -1422,7 +1445,8 @@ void SkGpuDevice::drawSprite(const SkDraw& draw, const SkBitmap& bitmap,
     GrPaint grPaint;
     grPaint.addColorTextureEffect(texture, SkMatrix::I());
 
-    SkPaint2GrPaintNoShader(this->context(), paint, true, false, &grPaint);
+    SkPaint2GrPaintNoShader(this->context(), paint, SkColor2GrColorJustAlpha(paint.getColor()),
+                            false, &grPaint);
 
     fContext->drawRectToRect(grPaint,
                              SkRect::MakeXYWH(SkIntToScalar(left),
@@ -1530,7 +1554,8 @@ void SkGpuDevice::drawDevice(const SkDraw& draw, SkBaseDevice* device,
     GrPaint grPaint;
     grPaint.addColorTextureEffect(devTex, SkMatrix::I());
 
-    SkPaint2GrPaintNoShader(this->context(), paint, true, false, &grPaint);
+    SkPaint2GrPaintNoShader(this->context(), paint, SkColor2GrColorJustAlpha(paint.getColor()),
+                            false, &grPaint);
 
     SkRect dstRect = SkRect::MakeXYWH(SkIntToScalar(x),
                                       SkIntToScalar(y),
@@ -1616,7 +1641,8 @@ void SkGpuDevice::drawVertices(const SkDraw& draw, SkCanvas::VertexMode vmode,
     GrPaint grPaint;
     // we ignore the shader if texs is null.
     if (NULL == texs) {
-        SkPaint2GrPaintNoShader(this->context(), paint, false, NULL == colors, &grPaint);
+        SkPaint2GrPaintNoShader(this->context(), paint, SkColor2GrColor(paint.getColor()),
+                                NULL == colors, &grPaint);
     } else {
         SkPaint2GrPaintShader(this->context(), paint, NULL == colors, &grPaint);
     }

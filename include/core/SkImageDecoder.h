@@ -137,6 +137,7 @@ public:
     Peeker* getPeeker() const { return fPeeker; }
     Peeker* setPeeker(Peeker*);
 
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     /** \class Chooser
 
         Base class for optional callbacks to choose an image from a format that
@@ -158,6 +159,7 @@ public:
 
     Chooser* getChooser() const { return fChooser; }
     Chooser* setChooser(Chooser*);
+#endif
 
     /**
      *  Optional table describing the caller's preferred config based on
@@ -237,22 +239,22 @@ public:
     }
 
     /** Passed to the decode method. If kDecodeBounds_Mode is passed, then
-        only the bitmap's width/height/config need be set. If kDecodePixels_Mode
+        only the bitmap's info need be set. If kDecodePixels_Mode
         is passed, then the bitmap must have pixels or a pixelRef.
     */
     enum Mode {
-        kDecodeBounds_Mode, //!< only return width/height/config in bitmap
+        kDecodeBounds_Mode, //!< only return info in bitmap
         kDecodePixels_Mode  //!< return entire bitmap (including pixels)
     };
 
     /** Given a stream, decode it into the specified bitmap.
-        If the decoder can decompress the image, it calls bitmap.setConfig(),
+        If the decoder can decompress the image, it calls bitmap.setInfo(),
         and then if the Mode is kDecodePixels_Mode, call allocPixelRef(),
         which will allocated a pixelRef. To access the pixel memory, the codec
         needs to call lockPixels/unlockPixels on the
         bitmap. It can then set the pixels with the decompressed image.
     *   If the image cannot be decompressed, return false. After the
-    *   decoding, the function converts the decoded config in bitmap
+    *   decoding, the function converts the decoded colortype in bitmap
     *   to pref if possible. Whether a conversion is feasible is
     *   tested by Bitmap::canCopyTo(pref).
 
@@ -263,13 +265,10 @@ public:
 
         If a Peeker is installed via setPeeker, it may be used to peek into
         meta data during the decode.
-
-        If a Chooser is installed via setChooser, it may be used to select
-        which image to return from a format that contains multiple images.
     */
-    bool decode(SkStream*, SkBitmap* bitmap, SkBitmap::Config pref, Mode);
+    bool decode(SkStream*, SkBitmap* bitmap, SkColorType pref, Mode);
     bool decode(SkStream* stream, SkBitmap* bitmap, Mode mode) {
-        return this->decode(stream, bitmap, SkBitmap::kNo_Config, mode);
+        return this->decode(stream, bitmap, kUnknown_SkColorType, mode);
     }
 
     /**
@@ -288,7 +287,7 @@ public:
      * Return true for success.
      * Return false if the index is never built or failing in decoding.
      */
-    bool decodeSubset(SkBitmap* bm, const SkIRect& subset, SkBitmap::Config pref);
+    bool decodeSubset(SkBitmap* bm, const SkIRect& subset, SkColorType pref);
 
     /** Given a stream, this will try to find an appropriate decoder object.
         If none is found, the method returns NULL.
@@ -298,34 +297,31 @@ public:
     /** Decode the image stored in the specified file, and store the result
         in bitmap. Return true for success or false on failure.
 
-        @param prefConfig If the PrefConfigTable is not set, prefer this config.
+        @param pref If the PrefConfigTable is not set, prefer this colortype.
                           See NOTE ABOUT PREFERRED CONFIGS.
 
         @param format On success, if format is non-null, it is set to the format
                       of the decoded file. On failure it is ignored.
     */
-    static bool DecodeFile(const char file[], SkBitmap* bitmap,
-                           SkBitmap::Config prefConfig, Mode,
+    static bool DecodeFile(const char file[], SkBitmap* bitmap, SkColorType pref, Mode,
                            Format* format = NULL);
     static bool DecodeFile(const char file[], SkBitmap* bitmap) {
-        return DecodeFile(file, bitmap, SkBitmap::kNo_Config,
-                          kDecodePixels_Mode, NULL);
+        return DecodeFile(file, bitmap, kUnknown_SkColorType, kDecodePixels_Mode, NULL);
     }
+
     /** Decode the image stored in the specified memory buffer, and store the
         result in bitmap. Return true for success or false on failure.
 
-        @param prefConfig If the PrefConfigTable is not set, prefer this config.
+        @param pref If the PrefConfigTable is not set, prefer this colortype.
                           See NOTE ABOUT PREFERRED CONFIGS.
 
         @param format On success, if format is non-null, it is set to the format
                        of the decoded buffer. On failure it is ignored.
      */
-    static bool DecodeMemory(const void* buffer, size_t size, SkBitmap* bitmap,
-                             SkBitmap::Config prefConfig, Mode,
-                             Format* format = NULL);
+    static bool DecodeMemory(const void* buffer, size_t size, SkBitmap* bitmap, SkColorType pref,
+                             Mode, Format* format = NULL);
     static bool DecodeMemory(const void* buffer, size_t size, SkBitmap* bitmap){
-        return DecodeMemory(buffer, size, bitmap, SkBitmap::kNo_Config,
-                            kDecodePixels_Mode, NULL);
+        return DecodeMemory(buffer, size, bitmap, kUnknown_SkColorType, kDecodePixels_Mode, NULL);
     }
 
     /**
@@ -346,33 +342,38 @@ public:
     /** Decode the image stored in the specified SkStreamRewindable, and store the result
         in bitmap. Return true for success or false on failure.
 
-        @param prefConfig If the PrefConfigTable is not set, prefer this config.
+        @param pref If the PrefConfigTable is not set, prefer this colortype.
                           See NOTE ABOUT PREFERRED CONFIGS.
 
         @param format On success, if format is non-null, it is set to the format
                       of the decoded stream. On failure it is ignored.
      */
-    static bool DecodeStream(SkStreamRewindable* stream, SkBitmap* bitmap,
-                             SkBitmap::Config prefConfig, Mode,
+    static bool DecodeStream(SkStreamRewindable* stream, SkBitmap* bitmap, SkColorType pref, Mode,
                              Format* format = NULL);
     static bool DecodeStream(SkStreamRewindable* stream, SkBitmap* bitmap) {
-        return DecodeStream(stream, bitmap, SkBitmap::kNo_Config,
-                            kDecodePixels_Mode, NULL);
+        return DecodeStream(stream, bitmap, kUnknown_SkColorType, kDecodePixels_Mode, NULL);
     }
 
-    /** Return the default config for the running device.
-        Currently this used as a suggestion to image decoders that need to guess
-        what config they should decode into.
-        Default is kNo_Config, but this can be changed with SetDeviceConfig()
-    */
-    static SkBitmap::Config GetDeviceConfig();
-    /** Set the default config for the running device.
-        Currently this used as a suggestion to image decoders that need to guess
-        what config they should decode into.
-        Default is kNo_Config.
-        This can be queried with GetDeviceConfig()
-    */
-    static void SetDeviceConfig(SkBitmap::Config);
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CONFIG
+    bool decode(SkStream*, SkBitmap* bitmap, SkBitmap::Config pref, Mode mode) {
+        return this->decode(stream, bitmap, SkBitmapConfigToColorType(pref), mode);
+    }
+    bool decodeSubset(SkBitmap* bm, const SkIRect& subset, SkBitmap::Config pref) {
+        return this->decodeSubset(bm, subset, SkBitmapConfigToColorType(pref));
+    }
+    static bool DecodeFile(const char file[], SkBitmap* bitmap, SkBitmapConfig pref, Mode mode,
+                           Format* format = NULL) {
+        return DecodeFile(file, bitmap, SkBitmapConfigToColorType(pref), mode, format);
+    }
+    static bool DecodeMemory(const void* buffer, size_t size, SkBitmap* bitmap,
+                             SkBitmap::Config pref, Mode mode, Format* format = NULL) {
+        return DecodeMemory(buffer, size, bitmap, SkBitmapConfigToColorType(pref), mode, format);
+    }
+    static bool DecodeStream(SkStreamRewindable* stream, SkBitmap* bitmap, SkBitmap::Config pref,
+                             Mode mode, Format* format = NULL) {
+        return DecodeStream(stream, bitmap, SkBitmapConfigToColorType(pref), mode, format);
+    }
+#endif
 
 protected:
     // must be overridden in subclasses. This guy is called by decode(...)
@@ -415,12 +416,6 @@ protected:
      */
     void copyFieldsToOther(SkImageDecoder* other);
 
-    /**
-     *  Return the default preference being used by the current or latest call to
-     *  decode.
-     */
-    SkBitmap::Config getDefaultPref() { return fDefaultPref; }
-
     /** Can be queried from within onDecode, to see if the user (possibly in
         a different thread) has requested the decode to cancel. If this returns
         true, your onDecode() should stop and return false.
@@ -436,13 +431,19 @@ public:
 protected:
     SkImageDecoder();
 
+    /**
+     *  Return the default preference being used by the current or latest call to decode.
+     */
+    SkColorType getDefaultPref() { return fDefaultPref; }
+    
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     // helper function for decoders to handle the (common) case where there is only
     // once choice available in the image file.
     bool chooseFromOneChoice(SkColorType, int width, int height) const;
+#endif
 
-    /*  Helper for subclasses. Call this to allocate the pixel memory given the bitmap's
-        width/height/rowbytes/config. Returns true on success. This method handles checking
-        for an optional Allocator.
+    /*  Helper for subclasses. Call this to allocate the pixel memory given the bitmap's info.
+        Returns true on success. This method handles checking for an optional Allocator.
     */
     bool allocPixelRef(SkBitmap*, SkColorTable*) const;
 
@@ -461,18 +462,17 @@ protected:
         the returned bitmap. SrcDepth and hasAlpha reflect the raw data of the
         src image. This routine returns the caller's preference given
         srcDepth and hasAlpha, or kUnknown_SkColorType if there is no preference.
-
-        Note: this also takes into account GetDeviceConfig(), so the subclass
-        need not call that.
      */
     SkColorType getPrefColorType(SrcDepth, bool hasAlpha) const;
 
 private:
     Peeker*                 fPeeker;
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     Chooser*                fChooser;
+#endif
     SkBitmap::Allocator*    fAllocator;
     int                     fSampleSize;
-    SkBitmap::Config        fDefaultPref;   // use if fUsePrefTable is false
+    SkColorType             fDefaultPref;   // use if fUsePrefTable is false
     PrefConfigTable         fPrefTable;     // use if fUsePrefTable is true
     bool                    fDitherImage;
     bool                    fUsePrefTable;

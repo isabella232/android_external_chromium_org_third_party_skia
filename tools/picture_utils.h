@@ -8,11 +8,7 @@
 #ifndef picture_utils_DEFINED
 #define picture_utils_DEFINED
 
-#include "SkTypes.h"
-
 class SkBitmap;
-class SkFILEStream;
-class SkPicture;
 class SkString;
 
 namespace sk_tools {
@@ -32,18 +28,6 @@ namespace sk_tools {
      * and remove it from elsewhere.
      */
     void replace_char(SkString* str, const char oldChar, const char newChar);
-
-    // Creates a posix style filepath by concatenating name onto dir with a
-    // forward slash into path.
-    // TODO(epoger): delete in favor of SkOSPath::SkPathJoin()?
-    void make_filepath(SkString* path, const SkString&, const SkString& name);
-
-    // Returns the last part of the path (file name or leaf directory name)
-    //
-    // This basically just looks for a foward slash or backslash (windows
-    // only).
-    // TODO(epoger): delete in favor of SkOSPath::SkBasename()?
-    void get_basename(SkString* basename, const SkString& path);
 
     // Returns true if the string ends with %
     bool is_percentage(const char* const string);
