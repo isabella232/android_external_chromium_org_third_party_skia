@@ -33,6 +33,7 @@
             4345,  # This is an FYI about a behavior change from long ago.  Chrome stifles it too.
         ],
         'msvs_cygwin_shell': 0,
+        'msvs_disabled_warnings': [4275],
         'msvs_settings': {
           'VCCLCompilerTool': {
             'WarningLevel': '3',
@@ -175,6 +176,7 @@
         'cflags_cc': [
           '-fno-rtti',
           '-Wnon-virtual-dtor',
+          '-Wno-invalid-offsetof',  # GCC <4.6 is old-school strict about what is POD.
         ],
         'conditions': [
           [ 'skia_android_framework==0', {
