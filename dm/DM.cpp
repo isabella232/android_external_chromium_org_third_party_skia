@@ -9,6 +9,7 @@
 #include "SkString.h"
 #include "Test.h"
 #include "gm.h"
+#include "CrashHandler.h"
 
 #include "DMBenchTask.h"
 #include "DMCpuGMTask.h"
@@ -38,16 +39,10 @@ using skiatest::TestRegistry;
 
 DEFINE_int32(threads, -1, "Threads for CPU work. Default NUM_CPUS.");
 DEFINE_int32(gpuThreads, 1, "Threads for GPU work.");
-#ifdef SK_BUILD_JSON_WRITER
 DEFINE_string2(expectations, r, "",
                "If a directory, compare generated images against images under this path. "
                "If a file, compare generated images against JSON expectations at this path."
 );
-#else
-DEFINE_string2(expectations, r, "",
-               "If a directory, compare generated images against images under this path. "
-);
-#endif
 DEFINE_string2(resources, i, "resources", "Path to resources directory.");
 DEFINE_string(match, "",  "[~][^]substring[$] [...] of GM name to run.\n"
                           "Multiple matches may be separated by spaces.\n"
@@ -221,6 +216,7 @@ static void append_matching_factories(Registry* head, SkTDArray<typename Registr
 
 int tool_main(int argc, char** argv);
 int tool_main(int argc, char** argv) {
+    SetupCrashHandler();
     SkAutoGraphics ag;
     SkCommandLineFlags::Parse(argc, argv);
 
@@ -249,9 +245,7 @@ int tool_main(int argc, char** argv) {
             if (sk_isdir(path)) {
                 expectations.reset(SkNEW_ARGS(DM::WriteTask::Expectations, (path)));
             } else {
-#ifdef SK_BUILD_JSON_WRITER
                 expectations.reset(SkNEW_ARGS(DM::JsonExpectations, (path)));
-#endif
             }
         }
     }

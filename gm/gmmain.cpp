@@ -17,6 +17,7 @@
 #include "gm_error.h"
 #include "gm_expectations.h"
 #include "system_preferences.h"
+#include "CrashHandler.h"
 #include "SkBitmap.h"
 #include "SkColorPriv.h"
 #include "SkCommandLineFlags.h"
@@ -869,7 +870,6 @@ public:
                                             const GmResultDigest &actualResultDigest,
                                             ErrorCombination errors,
                                             bool ignoreFailure) {
-#ifdef SK_BUILD_JSON_WRITER
         Json::Value jsonActualResults = actualResultDigest.asJsonTypeValuePair();
         Json::Value *resultCollection = NULL;
 
@@ -901,7 +901,6 @@ public:
         if (resultCollection) {
             (*resultCollection)[testName] = jsonActualResults;
         }
-#endif
     }
 
     /**
@@ -909,9 +908,7 @@ public:
      */
     void add_expected_results_to_json_summary(const char testName[],
                                               Expectations expectations) {
-#ifdef SK_BUILD_JSON_WRITER
         this->fJsonExpectedResults[testName] = expectations.asJsonValue();
-#endif
     }
 
     /**
@@ -1271,14 +1268,12 @@ public:
     // If unset, we don't do comparisons.
     SkAutoTUnref<ExpectationsSource> fExpectationsSource;
 
-#ifdef SK_BUILD_JSON_WRITER
     // JSON summaries that we generate as we go (just for output).
     Json::Value fJsonExpectedResults;
     Json::Value fJsonActualResults_Failed;
     Json::Value fJsonActualResults_FailureIgnored;
     Json::Value fJsonActualResults_NoComparison;
     Json::Value fJsonActualResults_Succeeded;
-#endif
 }; // end of GMMain class definition
 
 #if SK_SUPPORT_GPU
@@ -1475,9 +1470,7 @@ DEFINE_bool2(verbose, v, false, "Give more detail (e.g. list all GMs run, more i
              "each test).");
 DEFINE_bool(writeChecksumBasedFilenames, false, "When writing out actual images, use checksum-"
             "based filenames, as rebaseline.py will use when downloading them from Google Storage");
-#ifdef SK_BUILD_JSON_WRITER
 DEFINE_string(writeJsonSummaryPath, "", "Write a JSON-formatted result summary to this file.");
-#endif
 DEFINE_string2(writePath, w, "",  "Write rendered images into this directory.");
 DEFINE_string2(writePicturePath, p, "", "Write .skp files into this directory.");
 DEFINE_int32(pdfJpegQuality, -1, "Encodes images in JPEG at quality level N, "
@@ -2201,12 +2194,10 @@ static bool parse_flags_gmmain_paths(GMMain* gmmain) {
             gmmain->fExpectationsSource.reset(SkNEW_ARGS(
                 IndividualImageExpectationsSource, (readPath)));
         } else {
-#ifdef SK_BUILD_JSON_WRITER
             if (FLAGS_verbose) {
                 SkDebugf("reading expectations from JSON summary file %s\n", readPath);
             }
             gmmain->fExpectationsSource.reset(SkNEW_ARGS(JsonExpectationsSource, (readPath)));
-#endif
         }
     }
     return true;
@@ -2229,6 +2220,7 @@ static bool parse_flags_jpeg_quality() {
 
 int tool_main(int argc, char** argv);
 int tool_main(int argc, char** argv) {
+    SetupCrashHandler();
 
     SkString usage;
     usage.printf("Run the golden master tests.\n");
@@ -2413,7 +2405,6 @@ int tool_main(int argc, char** argv) {
     }
 #endif
 
-#ifdef SK_BUILD_JSON_WRITER
     if (FLAGS_writeJsonSummaryPath.count() == 1) {
         Json::Value root = CreateJsonTree(
             gmmain.fJsonExpectedResults,
@@ -2423,7 +2414,6 @@ int tool_main(int argc, char** argv) {
         SkFILEWStream stream(FLAGS_writeJsonSummaryPath[0]);
         stream.write(jsonStdString.c_str(), jsonStdString.length());
     }
-#endif
 
 #if SK_SUPPORT_GPU
 
