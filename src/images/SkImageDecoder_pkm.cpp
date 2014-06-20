@@ -46,17 +46,19 @@ bool SkPKMImageDecoder::onDecode(SkStream* stream, SkBitmap* bm, Mode mode) {
     const unsigned short width = etc1_pkm_get_width(buf);
     const unsigned short height = etc1_pkm_get_height(buf);
 
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     // should we allow the Chooser (if present) to pick a config for us???
-    if (!this->chooseFromOneChoice(SkBitmap::kARGB_8888_Config, width, height)) {
+    if (!this->chooseFromOneChoice(kN32_SkColorType, width, height)) {
         return false;
     }
+#endif
 
     // Setup the sampler...
     SkScaledBitmapSampler sampler(width, height, this->getSampleSize());
 
     // Set the config...
-    bm->setConfig(SkBitmap::kARGB_8888_Config, sampler.scaledWidth(), sampler.scaledHeight(),
-                  0, kOpaque_SkAlphaType);
+    bm->setInfo(SkImageInfo::MakeN32(sampler.scaledWidth(), sampler.scaledHeight(),
+                                     kOpaque_SkAlphaType));
     if (SkImageDecoder::kDecodeBounds_Mode == mode) {
         return true;
     }

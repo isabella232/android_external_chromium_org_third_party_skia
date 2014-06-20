@@ -23,7 +23,6 @@ class SkBBoxHierarchy;
 class SkCanvas;
 class SkDrawPictureCallback;
 class SkData;
-class SkPathHeap;
 class SkPicturePlayback;
 class SkPictureRecord;
 class SkStream;
@@ -132,23 +131,7 @@ public:
      */
     void clone(SkPicture* pictures, int count) const;
 
-    // TODO: kUsePathBoundsForClip_RecordingFlag no longer belongs in
-    // SkPicture. It should be moved to SkPictureRecorder (or just made
-    // the default behavior).
-    enum RecordingFlags {
-        /*  This flag specifies that when clipPath() is called, the path will
-            be faithfully recorded, but the recording canvas' current clip will
-            only see the path's bounds. This speeds up the recording process
-            without compromising the fidelity of the playback. The only side-
-            effect for recording is that calling getTotalClip() or related
-            clip-query calls will reflect the path's bounds, not the actual
-            path.
-         */
-        kUsePathBoundsForClip_RecordingFlag = 0x01
-    };
-
-    /** Replays the drawing commands on the specified canvas. This internally
-        calls endRecording() if that has not already been called.
+    /** Replays the drawing commands on the specified canvas.
         @param canvas the canvas receiving the drawing commands.
     */
     void draw(SkCanvas* canvas, SkDrawPictureCallback* = NULL) const;
@@ -225,14 +208,6 @@ public:
     static bool InternalOnly_StreamIsSKP(SkStream*, SkPictInfo*);
     static bool InternalOnly_BufferIsSKP(SkReadBuffer&, SkPictInfo*);
 
-    /** Enable/disable all the picture recording optimizations (i.e.,
-        those in SkPictureRecord). It is mainly intended for testing the
-        existing optimizations (i.e., to actually have the pattern
-        appear in an .skp we have to disable the optimization). Call right
-        after 'beginRecording'.
-    */
-    void internalOnly_EnableOpts(bool enableOpts);
-
     /** Return true if the picture is suitable for rendering on the GPU.
      */
 
@@ -284,7 +259,6 @@ protected:
     // install their own SkPicturePlayback-derived players,SkPictureRecord-derived
     // recorders and set the picture size
     SkPicturePlayback*    fPlayback;
-    SkPictureRecord*      fRecord;
     int                   fWidth, fHeight;
     mutable const AccelData* fAccelData;
 
@@ -294,84 +268,11 @@ protected:
     // playback is unchanged.
     SkPicture(SkPicturePlayback*, int width, int height);
 
+    SkPicture(int width, int height, const SkPictureRecord& record, bool deepCopyOps);
+
 private:
-    friend class SkPictureRecord;
-    friend class SkPictureTester;   // for unit testing
-
-    SkAutoTUnref<SkPathHeap> fPathHeap;  // reference counted
-
-    // ContentInfo is not serialized! It is intended solely for use
-    // with suitableForGpuRasterization.
-    class ContentInfo {
-    public:
-        ContentInfo() { this->reset(); }
-
-        ContentInfo(const ContentInfo& src) { this->set(src); }
-
-        void set(const ContentInfo& src) {
-            fNumPaintWithPathEffectUses = src.fNumPaintWithPathEffectUses;
-            fNumAAConcavePaths = src.fNumAAConcavePaths;
-            fNumAAHairlineConcavePaths = src.fNumAAHairlineConcavePaths;
-        }
-
-        void reset() {
-            fNumPaintWithPathEffectUses = 0;
-            fNumAAConcavePaths = 0;
-            fNumAAHairlineConcavePaths = 0;
-        }
-
-        void swap(ContentInfo* other) {
-            SkTSwap(fNumPaintWithPathEffectUses, other->fNumPaintWithPathEffectUses);
-            SkTSwap(fNumAAConcavePaths, other->fNumAAConcavePaths);
-            SkTSwap(fNumAAHairlineConcavePaths, other->fNumAAHairlineConcavePaths);
-        }
-
-        // This field is incremented every time a paint with a path effect is
-        // used (i.e., it is not a de-duplicated count)
-        int fNumPaintWithPathEffectUses;
-        // This field is incremented every time an anti-aliased drawPath call is
-        // issued with a concave path
-        int fNumAAConcavePaths;
-        // This field is incremented every time a drawPath call is
-        // issued for a hairline stroked concave path.
-        int fNumAAHairlineConcavePaths;
-    };
-
-    ContentInfo fContentInfo;
-
-    void incPaintWithPathEffectUses() {
-        ++fContentInfo.fNumPaintWithPathEffectUses;
-    }
-    int numPaintWithPathEffectUses() const {
-        return fContentInfo.fNumPaintWithPathEffectUses;
-    }
-
-    void incAAConcavePaths() {
-        ++fContentInfo.fNumAAConcavePaths;
-    }
-    int numAAConcavePaths() const {
-        return fContentInfo.fNumAAConcavePaths;
-    }
-
-    void incAAHairlineConcavePaths() {
-        ++fContentInfo.fNumAAHairlineConcavePaths;
-        SkASSERT(fContentInfo.fNumAAHairlineConcavePaths <= fContentInfo.fNumAAConcavePaths);
-    }
-    int numAAHairlineConcavePaths() const {
-        return fContentInfo.fNumAAHairlineConcavePaths;
-    }
-
-    const SkPath& getPath(int index) const;
-    int addPathToHeap(const SkPath& path);
-
-    void flattenToBuffer(SkWriteBuffer& buffer) const;
-    bool parseBufferTag(SkReadBuffer& buffer, uint32_t tag, uint32_t size);
-
     static void WriteTagSize(SkWriteBuffer& buffer, uint32_t tag, size_t size);
     static void WriteTagSize(SkWStream* stream, uint32_t tag, size_t size);
-
-    void initForPlayback() const;
-    void dumpSize() const;
 
     // An OperationList encapsulates a set of operation offsets into the picture byte
     // stream along with the CTMs needed for those operation.
@@ -407,42 +308,14 @@ private:
 
     void createHeader(SkPictInfo* info) const;
     static bool IsValidPictInfo(const SkPictInfo& info);
-    static SkPicturePlayback* FakeEndRecording(const SkPicture* resourceSrc,
-                                               const SkPictureRecord& record,
-                                               bool deepCopy);
 
     friend class SkFlatPicture;
     friend class SkPicturePlayback;
-    friend class SkPictureRecorder;
+    friend class SkPictureRecorder; // just for SkPicture-based constructor
     friend class SkGpuDevice;
     friend class GrGatherCanvas;
     friend class GrGatherDevice;
     friend class SkDebugCanvas;
-
-    // TODO: beginRecording, getRecordingCanvas & endRecording can now be
-    // be moved out of SkPicture (and, presumably, be directly implemented
-    // in SkPictureRecorder)
-
-    /** Returns the canvas that records the drawing commands.
-        @param width the base width for the picture, as if the recording
-               canvas' bitmap had this width.
-        @param height the base width for the picture, as if the recording
-               canvas' bitmap had this height.
-        @param factory if non-NULL, the factory used to the BBH for the recorded picture
-        @param recordFlags optional flags that control recording.
-        @return the picture canvas.
-    */
-    SkCanvas* beginRecording(int width, int height, SkBBHFactory* factory, uint32_t recordFlags);
-    /** Returns the recording canvas if one is active, or NULL if recording is
-        not active. This does not alter the refcnt on the canvas (if present).
-    */
-    SkCanvas* getRecordingCanvas() const;
-    /** Signal that the caller is done recording. This invalidates the canvas
-        returned by beginRecording/getRecordingCanvas, and prepares the picture
-        for drawing. Note: this happens implicitly the first time the picture
-        is drawn.
-    */
-    void endRecording();
 
     typedef SkRefCnt INHERITED;
 };

@@ -12,7 +12,7 @@ const char* SkTriState::Name[] = { "default", "true", "false" };
 
 template BenchRegistry* BenchRegistry::gHead;
 
-SkString SkBenchmark::gResourcePath;
+const char* SkBenchmark::gResourcePath;
 
 SkBenchmark::SkBenchmark() {
     fForceAlpha = 0xFF;
@@ -38,10 +38,6 @@ void SkBenchmark::draw(const int loops, SkCanvas* canvas) {
     this->onDraw(loops, canvas);
 }
 
-void SkBenchmark::postDraw() {
-    this->onPostDraw();
-}
-
 void SkBenchmark::setupPaint(SkPaint* paint) {
     paint->setAlpha(fForceAlpha);
     paint->setAntiAlias(fForceAA);
@@ -55,6 +51,13 @@ void SkBenchmark::setupPaint(SkPaint* paint) {
     }
 }
 
+void SkBenchmark::SetResourcePath(const char* resourcePath) {
+    gResourcePath = resourcePath;
+}
+
+SkString SkBenchmark::GetResourcePath() {
+    return SkString(gResourcePath);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

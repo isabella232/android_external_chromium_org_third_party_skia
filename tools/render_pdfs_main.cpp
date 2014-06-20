@@ -111,7 +111,7 @@ static SkData* encode_to_dct_data(size_t*, const SkBitmap& bitmap) {
  */
 static bool make_output_filepath(SkString* path, const SkString& dir,
                                  const SkString& name) {
-    sk_tools::make_filepath(path, dir, name);
+    *path = SkOSPath::SkPathJoin(dir.c_str(), name.c_str());
     return replace_filename_extension(path,
                                       SKP_FILE_EXTENSION,
                                       PDF_FILE_EXTENSION);
@@ -149,8 +149,7 @@ static SkWStream* open_stream(const SkString& outputDir,
  */
 static bool render_pdf(const SkString& inputPath, const SkString& outputDir,
                        sk_tools::PdfRenderer& renderer) {
-    SkString inputFilename;
-    sk_tools::get_basename(&inputFilename, inputPath);
+    SkString inputFilename = SkOSPath::SkBasename(inputPath.c_str());
 
     SkFILEStream inputStream;
     inputStream.setPath(inputPath.c_str());
@@ -198,8 +197,7 @@ static int process_input(const SkString& input, const SkString& outputDir,
         SkOSFile::Iter iter(input.c_str(), SKP_FILE_EXTENSION);
         SkString inputFilename;
         while (iter.next(&inputFilename)) {
-            SkString inputPath;
-            sk_tools::make_filepath(&inputPath, input, inputFilename);
+            SkString inputPath = SkOSPath::SkPathJoin(input.c_str(), inputFilename.c_str());
             if (!render_pdf(inputPath, outputDir, renderer)) {
                 ++failures;
             }

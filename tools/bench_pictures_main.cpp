@@ -191,8 +191,7 @@ static bool run_single_benchmark(const SkString& inputPath,
         return false;
     }
 
-    SkString filename;
-    sk_tools::get_basename(&filename, inputPath);
+    SkString filename = SkOSPath::SkBasename(inputPath.c_str());
 
     gWriter.bench(filename.c_str(), picture->width(), picture->height());
 
@@ -375,8 +374,7 @@ static int process_input(const char* input,
     int failures = 0;
     if (iter.next(&inputFilename)) {
         do {
-            SkString inputPath;
-            sk_tools::make_filepath(&inputPath, inputAsSkString, inputFilename);
+            SkString inputPath = SkOSPath::SkPathJoin(input, inputFilename.c_str());
             if (!run_single_benchmark(inputPath, benchmark)) {
                 ++failures;
             }

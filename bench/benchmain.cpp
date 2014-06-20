@@ -78,18 +78,6 @@ private:
     const skiagm::GMRegistry* fGMs;
 };
 
-class AutoPrePostDraw {
-public:
-    AutoPrePostDraw(SkBenchmark* bench) : fBench(bench) {
-        fBench->preDraw();
-    }
-    ~AutoPrePostDraw() {
-        fBench->postDraw();
-    }
-private:
-    SkBenchmark* fBench;
-};
-
 static void make_filename(const char name[], SkString* path) {
     path->set(name);
     for (int i = 0; name[i]; i++) {
@@ -462,7 +450,7 @@ int tool_main(int argc, char** argv) {
         bench->setForceAA(FLAGS_forceAA);
         bench->setForceFilter(FLAGS_forceFilter);
         bench->setDither(dither);
-        AutoPrePostDraw appd(bench);
+        bench->preDraw();
 
         bool loggedBenchName = false;
         for (int i = 0; i < configs.count(); ++i) {
@@ -490,9 +478,6 @@ int tool_main(int argc, char** argv) {
             SkPictureRecorder recorderTo;
             const SkIPoint dim = bench->getSize();
 
-            const SkPicture::RecordingFlags kRecordFlags =
-                SkPicture::kUsePathBoundsForClip_RecordingFlag;
-
             SkAutoTUnref<SkSurface> surface;
             if (SkBenchmark::kNonRendering_Backend != config.backend) {
                 surface.reset(make_surface(config.fColorType,
@@ -512,16 +497,13 @@ int tool_main(int argc, char** argv) {
                         canvas.reset(SkDeferredCanvas::Create(surface.get()));
                         break;
                     case kRecord_BenchMode:
-                        canvas.reset(SkRef(recorderTo.beginRecording(dim.fX, dim.fY,
-                                                                     NULL, kRecordFlags)));
+                        canvas.reset(SkRef(recorderTo.beginRecording(dim.fX, dim.fY)));
                         break;
                     case kPictureRecord_BenchMode: {
                         SkPictureRecorder recorderFrom;
-                        bench->draw(1, recorderFrom.beginRecording(dim.fX, dim.fY,
-                                                                   NULL, kRecordFlags));
+                        bench->draw(1, recorderFrom.beginRecording(dim.fX, dim.fY));
                         recordFrom.reset(recorderFrom.endRecording());
-                        canvas.reset(SkRef(recorderTo.beginRecording(dim.fX, dim.fY,
-                                                                     NULL, kRecordFlags)));
+                        canvas.reset(SkRef(recorderTo.beginRecording(dim.fX, dim.fY)));
                         break;
                     }
                     case kNormal_BenchMode:
@@ -587,8 +569,7 @@ int tool_main(int argc, char** argv) {
 
                     if ((benchMode == kRecord_BenchMode || benchMode == kPictureRecord_BenchMode)) {
                         // Clear the recorded commands so that they do not accumulate.
-                        canvas.reset(SkRef(recorderTo.beginRecording(dim.fX, dim.fY,
-                                                                     NULL, kRecordFlags)));
+                        canvas.reset(SkRef(recorderTo.beginRecording(dim.fX, dim.fY)));
                     }
 
                     timer.start();

@@ -25,15 +25,13 @@ protected:
     }
 
     virtual SkISize onISize() {
-        return make_isize(1024, 512);
+        return SkISize::Make(1024, 512);
     }
 
     virtual void onDraw(SkCanvas* canvas) {
         SkBitmap bm, bm4444;
-        SkString filename = SkOSPath::SkPathJoin(
-                INHERITED::gResourcePath.c_str(), "mandrill_512.png");
-        if (!SkImageDecoder::DecodeFile(filename.c_str(), &bm,
-                                        SkBitmap::kARGB_8888_Config,
+        SkString filename = SkOSPath::SkPathJoin(INHERITED::gResourcePath, "mandrill_512.png");
+        if (!SkImageDecoder::DecodeFile(filename.c_str(), &bm, kN32_SkColorType,
                                         SkImageDecoder::kDecodePixels_Mode)) {
             SkDebugf("Could not decode the file. Did you forget to set the "
                      "resourcePath?\n");

@@ -151,13 +151,6 @@ static inline size_t GrSizeAlignDown(size_t x, uint32_t alignment) {
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- *  Return true if n is a power of 2
- */
-static inline bool GrIsPow2(unsigned n) {
-    return n && 0 == (n & (n - 1));
-}
-
-/**
  *  Return the next power of 2 >= n.
  */
 static inline uint32_t GrNextPow2(uint32_t n) {
@@ -370,6 +363,7 @@ static inline bool GrPixelConfigIsOpaque(GrPixelConfig config) {
 
 static inline bool GrPixelConfigIsAlphaOnly(GrPixelConfig config) {
     switch (config) {
+        case kLATC_GrPixelConfig:
         case kAlpha_8_GrPixelConfig:
             return true;
         default:

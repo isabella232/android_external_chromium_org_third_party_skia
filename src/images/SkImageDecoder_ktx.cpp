@@ -7,6 +7,7 @@
 
 #include "SkColorPriv.h"
 #include "SkImageDecoder.h"
+#include "SkPixelRef.h"
 #include "SkScaledBitmapSampler.h"
 #include "SkStream.h"
 #include "SkStreamHelpers.h"
@@ -61,19 +62,37 @@ bool SkKTXImageDecoder::onDecode(SkStream* stream, SkBitmap* bm, Mode mode) {
     const unsigned short width = ktxFile.width();
     const unsigned short height = ktxFile.height();
 
+#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     // should we allow the Chooser (if present) to pick a config for us???
-    if (!this->chooseFromOneChoice(SkBitmap::kARGB_8888_Config, width, height)) {
+    if (!this->chooseFromOneChoice(kN32_SkColorType, width, height)) {
         return false;
     }
+#endif
+
+    // Set a flag if our source is premultiplied alpha
+    const SkString premulKey("KTXPremultipliedAlpha");
+    const bool bSrcIsPremul = ktxFile.getValueForKey(premulKey) == SkString("True");
 
     // Setup the sampler...
     SkScaledBitmapSampler sampler(width, height, this->getSampleSize());
 
+    // Determine the alpha of the bitmap...
+    SkAlphaType alphaType = kOpaque_SkAlphaType;
+    if (ktxFile.isRGBA8()) {
+        if (this->getRequireUnpremultipliedColors()) {
+            alphaType = kUnpremul_SkAlphaType;
+            // If the client wants unpremul colors and we only have
+            // premul, then we cannot honor their wish.
+            if (bSrcIsPremul) {
+                return false;
+            }
+        } else {
+            alphaType = kPremul_SkAlphaType;
+        }
+    }
+
     // Set the config...
-    bm->setConfig(SkBitmap::kARGB_8888_Config,
-                  sampler.scaledWidth(), sampler.scaledHeight(),
-                  0,
-                  ktxFile.isRGBA8()? kUnpremul_SkAlphaType : kOpaque_SkAlphaType);
+    bm->setInfo(SkImageInfo::MakeN32(sampler.scaledWidth(), sampler.scaledHeight(), alphaType));
     if (SkImageDecoder::kDecodeBounds_Mode == mode) {
         return true;
     }
@@ -136,7 +155,18 @@ bool SkKTXImageDecoder::onDecode(SkStream* stream, SkBitmap* bm, Mode mode) {
     } else if (ktxFile.isRGBA8()) {
 
         // Uncompressed RGBA data
-        if (!sampler.begin(bm, SkScaledBitmapSampler::kRGBA, *this)) {
+
+        // If we know that the image contains premultiplied alpha, then
+        // we need to turn off the premultiplier
+        SkScaledBitmapSampler::Options opts (*this);
+        if (bSrcIsPremul) {
+            SkASSERT(bm->alphaType() == kPremul_SkAlphaType);
+            SkASSERT(!this->getRequireUnpremultipliedColors());
+
+            opts.fPremultiplyAlpha = false;
+        } 
+
+        if (!sampler.begin(bm, SkScaledBitmapSampler::kRGBA, opts)) {
             return false;
         }
 
@@ -156,8 +186,72 @@ bool SkKTXImageDecoder::onDecode(SkStream* stream, SkBitmap* bm, Mode mode) {
     return false;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+// KTX Image Encoder
+//
+// This encoder takes a best guess at how to encode the bitmap passed to it. If
+// there is an installed discardable pixel ref with existing PKM data, then we
+// will repurpose the existing ETC1 data into a KTX file. If the data contains
+// KTX data, then we simply return a copy of the same data. For all other files,
+// the underlying KTX library tries to do its best to encode the appropriate
+// data specified by the bitmap based on the config. (i.e. kAlpha8_Config will
+// be represented as a full resolution 8-bit image dump with the appropriate
+// OpenGL defines in the header).
+
+class SkKTXImageEncoder : public SkImageEncoder {
+protected:
+    virtual bool onEncode(SkWStream* stream, const SkBitmap& bm, int quality) SK_OVERRIDE;
+
+private:
+    virtual bool encodePKM(SkWStream* stream, const SkData *data);
+    typedef SkImageEncoder INHERITED;
+};
+
+bool SkKTXImageEncoder::onEncode(SkWStream* stream, const SkBitmap& bitmap, int) {
+    SkAutoDataUnref data(bitmap.pixelRef()->refEncodedData());
+
+    // Is this even encoded data?
+    if (NULL != data) {
+        const uint8_t *bytes = data->bytes();
+        if (etc1_pkm_is_valid(bytes)) {
+            return this->encodePKM(stream, data);
+        }
+
+        // Is it a KTX file??
+        if (SkKTXFile::is_ktx(bytes)) {
+            return stream->write(bytes, data->size());
+        }
+        
+        // If it's neither a KTX nor a PKM, then we need to
+        // get at the actual pixels, so fall through and decompress...
+    }
+
+    return SkKTXFile::WriteBitmapToKTX(stream, bitmap);
+}
+
+bool SkKTXImageEncoder::encodePKM(SkWStream* stream, const SkData *data) {
+    const uint8_t* bytes = data->bytes();
+    SkASSERT(etc1_pkm_is_valid(bytes));
+
+    etc1_uint32 width = etc1_pkm_get_width(bytes);
+    etc1_uint32 height = etc1_pkm_get_height(bytes);
+
+    // ETC1 Data is stored as compressed 4x4 pixel blocks, so we must make sure
+    // that our dimensions are valid.
+    if (width == 0 || (width & 3) != 0 || height == 0 || (height & 3) != 0) {
+        return false;
+    }
+
+    // Advance pointer to etc1 data.
+    bytes += ETC_PKM_HEADER_SIZE;
+
+    return SkKTXFile::WriteETC1ToKTX(stream, bytes, width, height);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////
 DEFINE_DECODER_CREATOR(KTXImageDecoder);
+DEFINE_ENCODER_CREATOR(KTXImageEncoder);
 /////////////////////////////////////////////////////////////////////////////////////////
 
 static SkImageDecoder* sk_libktx_dfactory(SkStreamRewindable* stream) {
@@ -167,8 +261,6 @@ static SkImageDecoder* sk_libktx_dfactory(SkStreamRewindable* stream) {
     return NULL;
 }
 
-static SkImageDecoder_DecodeReg gReg(sk_libktx_dfactory);
-
 static SkImageDecoder::Format get_format_ktx(SkStreamRewindable* stream) {
     if (SkKTXFile::is_ktx(stream)) {
         return SkImageDecoder::kKTX_Format;
@@ -176,4 +268,10 @@ static SkImageDecoder::Format get_format_ktx(SkStreamRewindable* stream) {
     return SkImageDecoder::kUnknown_Format;
 }
 
+SkImageEncoder* sk_libktx_efactory(SkImageEncoder::Type t) {
+    return (SkImageEncoder::kKTX_Type == t) ? SkNEW(SkKTXImageEncoder) : NULL;
+}
+
+static SkImageDecoder_DecodeReg gReg(sk_libktx_dfactory);
 static SkImageDecoder_FormatReg gFormatReg(get_format_ktx);
+static SkImageEncoder_EncodeReg gEReg(sk_libktx_efactory);

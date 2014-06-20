@@ -63,7 +63,7 @@ bool get_bitmap(SkData* fileBits, DiffResource& resource, SkImageDecoder::Mode m
     SkAutoTDelete<SkImageDecoder> ad(codec);
 
     stream.rewind();
-    if (!codec->decode(&stream, &resource.fBitmap, SkBitmap::kARGB_8888_Config, mode)) {
+    if (!codec->decode(&stream, &resource.fBitmap, kN32_SkColorType, mode)) {
         SkDebugf("ERROR: codec failed for basePath <%s>\n", resource.fFullPath.c_str());
         resource.fStatus = DiffResource::kCouldNotDecode_Status;
         return false;
@@ -144,11 +144,9 @@ void create_and_write_diff_image(DiffRecord* drp,
     if (w != drp->fComparison.fBitmap.width() || h != drp->fComparison.fBitmap.height()) {
         drp->fResult = DiffRecord::kDifferentSizes_Result;
     } else {
-        drp->fDifference.fBitmap.setConfig(SkBitmap::kARGB_8888_Config, w, h);
-        drp->fDifference.fBitmap.allocPixels();
+        drp->fDifference.fBitmap.allocN32Pixels(w, h);
 
-        drp->fWhite.fBitmap.setConfig(SkBitmap::kARGB_8888_Config, w, h);
-        drp->fWhite.fBitmap.allocPixels();
+        drp->fWhite.fBitmap.allocN32Pixels(w, h);
 
         SkASSERT(DiffRecord::kUnknown_Result == drp->fResult);
         compute_diff(drp, dmp, colorThreshold);

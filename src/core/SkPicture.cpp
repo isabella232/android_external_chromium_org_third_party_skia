@@ -126,98 +126,49 @@ static void validateMatrix(const SkMatrix* matrix) {
 SkPicture::SkPicture()
     : fAccelData(NULL) {
     this->needsNewGenID();
-    fRecord = NULL;
     fPlayback = NULL;
     fWidth = fHeight = 0;
 }
 
-// This method makes a SkPicturePlayback object from an in-progress recording.
-// Unfortunately, it does not include the restoreToCount of a real endRecording
-// call.
-SkPicturePlayback* SkPicture::FakeEndRecording(const SkPicture* resourceSrc,
-                                               const SkPictureRecord& record,
-                                               bool deepCopy) {
+SkPicture::SkPicture(int width, int height,
+                     const SkPictureRecord& record,
+                     bool deepCopyOps)
+    : fWidth(width)
+    , fHeight(height)
+    , fAccelData(NULL) {
+    this->needsNewGenID();
+
     SkPictInfo info;
-    resourceSrc->createHeader(&info);
-    return SkNEW_ARGS(SkPicturePlayback, (resourceSrc, record, info, deepCopy));
+    this->createHeader(&info);
+    fPlayback = SkNEW_ARGS(SkPicturePlayback, (record, info, deepCopyOps));
 }
 
 SkPicture::SkPicture(const SkPicture& src)
     : INHERITED()
-    , fAccelData(NULL)
-    , fContentInfo(src.fContentInfo) {
+    , fAccelData(NULL) {
     this->needsNewGenID();
     fWidth = src.fWidth;
     fHeight = src.fHeight;
-    fRecord = NULL;
 
-    /*  We want to copy the src's playback. However, if that hasn't been built
-        yet, we need to fake a call to endRecording() without actually calling
-        it (since it is destructive, and we don't want to change src).
-     */
     if (src.fPlayback) {
-        fPlayback = SkNEW_ARGS(SkPicturePlayback, (this, *src.fPlayback));
-        SkASSERT(NULL == src.fRecord);
+        fPlayback = SkNEW_ARGS(SkPicturePlayback, (*src.fPlayback));
         fUniqueID = src.uniqueID();     // need to call method to ensure != 0
-    } else if (src.fRecord) {
-        fPlayback = FakeEndRecording(this, *src.fRecord, false);
     } else {
         fPlayback = NULL;
     }
-
-    fPathHeap.reset(SkSafeRef(src.fPathHeap.get()));
-}
-
-const SkPath& SkPicture::getPath(int index) const {
-    return (*fPathHeap.get())[index];
-}
-
-int SkPicture::addPathToHeap(const SkPath& path) {
-    if (NULL == fPathHeap) {
-        fPathHeap.reset(SkNEW(SkPathHeap));
-    }
-#ifdef SK_DEDUP_PICTURE_PATHS
-    return fPathHeap->insert(path);
-#else
-    return fPathHeap->append(path);
-#endif
-}
-
-void SkPicture::initForPlayback() const {
-    // ensure that the paths bounds are pre-computed
-    if (NULL != fPathHeap.get()) {
-        for (int i = 0; i < fPathHeap->count(); i++) {
-            (*fPathHeap.get())[i].updateBoundsCache();
-        }
-    }
-}
-
-void SkPicture::dumpSize() const {
-    SkDebugf("--- picture size: paths=%d\n",
-             SafeCount(fPathHeap.get()));
 }
 
 SkPicture::~SkPicture() {
-    SkSafeUnref(fRecord);
     SkDELETE(fPlayback);
     SkSafeUnref(fAccelData);
 }
 
-void SkPicture::internalOnly_EnableOpts(bool enableOpts) {
-    if (NULL != fRecord) {
-        fRecord->internalOnly_EnableOpts(enableOpts);
-    }
-}
-
 void SkPicture::swap(SkPicture& other) {
     SkTSwap(fUniqueID, other.fUniqueID);
-    SkTSwap(fRecord, other.fRecord);
     SkTSwap(fPlayback, other.fPlayback);
     SkTSwap(fAccelData, other.fAccelData);
     SkTSwap(fWidth, other.fWidth);
     SkTSwap(fHeight, other.fHeight);
-    fPathHeap.swap(&other.fPathHeap);
-    fContentInfo.swap(&other.fContentInfo);
 }
 
 SkPicture* SkPicture::clone() const {
@@ -235,9 +186,7 @@ void SkPicture::clone(SkPicture* pictures, int count) const {
         clone->needsNewGenID();
         clone->fWidth = fWidth;
         clone->fHeight = fHeight;
-        SkSafeSetNull(clone->fRecord);
         SkDELETE(clone->fPlayback);
-        clone->fContentInfo.set(fContentInfo);
 
         /*  We want to copy the src's playback. However, if that hasn't been built
             yet, we need to fake a call to endRecording() without actually calling
@@ -286,16 +235,11 @@ void SkPicture::clone(SkPicture* pictures, int count) const {
                 copyInfo.initialized = true;
             }
 
-            clone->fPlayback = SkNEW_ARGS(SkPicturePlayback, (clone, *fPlayback, &copyInfo));
-            SkASSERT(NULL == fRecord);
+            clone->fPlayback = SkNEW_ARGS(SkPicturePlayback, (*fPlayback, &copyInfo));
             clone->fUniqueID = this->uniqueID(); // need to call method to ensure != 0
-        } else if (fRecord) {
-            clone->fPlayback = FakeEndRecording(clone, *fRecord, true);
         } else {
             clone->fPlayback = NULL;
         }
-
-        clone->fPathHeap.reset(SkSafeRef(fPathHeap.get()));
     }
 }
 
@@ -312,62 +256,13 @@ SkPicture::AccelData::Domain SkPicture::AccelData::GenerateDomain() {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SkCanvas* SkPicture::beginRecording(int width, int height,
-                                    SkBBHFactory* bbhFactory,
-                                    uint32_t recordingFlags) {
-    if (fPlayback) {
-        SkDELETE(fPlayback);
-        fPlayback = NULL;
-    }
-    SkSafeUnref(fAccelData);
-    SkSafeSetNull(fRecord);
-    SkASSERT(NULL == fPathHeap);
-    fContentInfo.reset();
-
-    this->needsNewGenID();
-
-    fWidth = width;
-    fHeight = height;
-
-    const SkISize size = SkISize::Make(width, height);
-
-    if (NULL != bbhFactory) {
-        SkAutoTUnref<SkBBoxHierarchy> tree((*bbhFactory)(width, height));
-        SkASSERT(NULL != tree);
-        fRecord = SkNEW_ARGS(SkBBoxHierarchyRecord, (this, size, recordingFlags, tree.get()));
-    } else {
-        fRecord = SkNEW_ARGS(SkPictureRecord, (this, size, recordingFlags));
-    }
-    fRecord->beginRecording();
-
-    return fRecord;
-}
-
-SkCanvas* SkPicture::getRecordingCanvas() const {
-    // will be null if we are not recording
-    return fRecord;
-}
-
-void SkPicture::endRecording() {
-    if (NULL == fPlayback) {
-        if (NULL != fRecord) {
-            fRecord->endRecording();
-            SkPictInfo info;
-            this->createHeader(&info);
-            fPlayback = SkNEW_ARGS(SkPicturePlayback, (this, *fRecord, info));
-            SkSafeSetNull(fRecord);
-        }
-    }
-    SkASSERT(NULL == fRecord);
-}
-
 const SkPicture::OperationList& SkPicture::OperationList::InvalidList() {
     static OperationList gInvalid;
     return gInvalid;
 }
 
 const SkPicture::OperationList& SkPicture::EXPERIMENTAL_getActiveOps(const SkIRect& queryRect) const {
-    SkASSERT(NULL != fPlayback && NULL == fRecord);
+    SkASSERT(NULL != fPlayback);
     if (NULL != fPlayback) {
         return fPlayback->getActiveOps(queryRect);
     }
@@ -382,7 +277,7 @@ size_t SkPicture::EXPERIMENTAL_curOpID() const {
 }
 
 void SkPicture::draw(SkCanvas* surface, SkDrawPictureCallback* callback) const {
-    SkASSERT(NULL != fPlayback && NULL == fRecord);
+    SkASSERT(NULL != fPlayback);
     if (NULL != fPlayback) {
         fPlayback->draw(*surface, callback);
     }
@@ -441,7 +336,6 @@ bool SkPicture::InternalOnly_BufferIsSKP(SkReadBuffer& buffer, SkPictInfo* pInfo
 
 SkPicture::SkPicture(SkPicturePlayback* playback, int width, int height)
     : fPlayback(playback)
-    , fRecord(NULL)
     , fWidth(width)
     , fHeight(height)
     , fAccelData(NULL) {
@@ -455,20 +349,17 @@ SkPicture* SkPicture::CreateFromStream(SkStream* stream, InstallPixelRefProc pro
         return NULL;
     }
 
-    SkPicture* newPict = SkNEW_ARGS(SkPicture, (NULL, info.fWidth, info.fHeight));
-
     // Check to see if there is a playback to recreate.
     if (stream->readBool()) {
-        SkPicturePlayback* playback = SkPicturePlayback::CreateFromStream(newPict, stream,
-                                                                          info, proc);
+        SkPicturePlayback* playback = SkPicturePlayback::CreateFromStream(stream, info, proc);
         if (NULL == playback) {
-            SkDELETE(newPict);
             return NULL;
         }
-        newPict->fPlayback = playback;
+
+        return SkNEW_ARGS(SkPicture, (playback, info.fWidth, info.fHeight));
     }
 
-    return newPict;
+    return NULL;
 }
 
 SkPicture* SkPicture::CreateFromBuffer(SkReadBuffer& buffer) {
@@ -478,19 +369,17 @@ SkPicture* SkPicture::CreateFromBuffer(SkReadBuffer& buffer) {
         return NULL;
     }
 
-    SkPicture* newPict = SkNEW_ARGS(SkPicture, (NULL, info.fWidth, info.fHeight));
-
     // Check to see if there is a playback to recreate.
     if (buffer.readBool()) {
-        SkPicturePlayback* playback = SkPicturePlayback::CreateFromBuffer(newPict, buffer, info);
+        SkPicturePlayback* playback = SkPicturePlayback::CreateFromBuffer(buffer, info);
         if (NULL == playback) {
-            SkDELETE(newPict);
             return NULL;
         }
-        newPict->fPlayback = playback;
+
+        return SkNEW_ARGS(SkPicture, (playback, info.fWidth, info.fHeight));
     }
 
-    return newPict;
+    return NULL;
 }
 
 void SkPicture::createHeader(SkPictInfo* info) const {
@@ -514,10 +403,6 @@ void SkPicture::createHeader(SkPictInfo* info) const {
 
 void SkPicture::serialize(SkWStream* stream, EncodeBitmap encoder) const {
     SkPicturePlayback* playback = fPlayback;
-
-    if (NULL == playback && fRecord) {
-        playback = FakeEndRecording(this, *fRecord, false);
-    }
 
     SkPictInfo info;
     this->createHeader(&info);
@@ -544,38 +429,8 @@ void SkPicture::WriteTagSize(SkWStream* stream, uint32_t tag,  size_t size) {
     stream->write32(SkToU32(size));
 }
 
-bool SkPicture::parseBufferTag(SkReadBuffer& buffer,
-                               uint32_t tag,
-                               uint32_t size) {
-    switch (tag) {
-        case SK_PICT_PATH_BUFFER_TAG:
-            if (size > 0) {
-                fPathHeap.reset(SkNEW_ARGS(SkPathHeap, (buffer)));
-            }
-            break;
-        default:
-            // The tag was invalid.
-            return false;
-    }
-
-    return true;    // success
-}
-
-void SkPicture::flattenToBuffer(SkWriteBuffer& buffer) const {
-    int n;
-
-    if ((n = SafeCount(fPathHeap.get())) > 0) {
-        WriteTagSize(buffer, SK_PICT_PATH_BUFFER_TAG, n);
-        fPathHeap->flatten(buffer);
-    }
-}
-
 void SkPicture::flatten(SkWriteBuffer& buffer) const {
     SkPicturePlayback* playback = fPlayback;
-
-    if (NULL == playback && fRecord) {
-        playback = FakeEndRecording(this, *fRecord, false);
-    }
 
     SkPictInfo info;
     this->createHeader(&info);
@@ -594,23 +449,14 @@ void SkPicture::flatten(SkWriteBuffer& buffer) const {
 
 #if SK_SUPPORT_GPU
 bool SkPicture::suitableForGpuRasterization(GrContext* context, const char **reason) const {
-    // TODO: the heuristic used here needs to be refined
-    static const int kNumPaintWithPathEffectUsesTol = 1;
-    static const int kNumAAConcavePaths = 5;
-
-    SkASSERT(this->numAAHairlineConcavePaths() <= this->numAAConcavePaths());
-
-    bool ret = this->numPaintWithPathEffectUses() < kNumPaintWithPathEffectUsesTol &&
-               (this->numAAConcavePaths()-this->numAAHairlineConcavePaths()) < kNumAAConcavePaths;
-    if (!ret && reason) {
-        if (this->numPaintWithPathEffectUses() >= kNumPaintWithPathEffectUsesTol)
-            *reason = "Too many path effects.";
-        else if ((this->numAAConcavePaths()-this->numAAHairlineConcavePaths()) >= kNumAAConcavePaths)
-            *reason = "Too many anti-aliased concave paths.";
-        else
-            *reason = "Unknown reason for GPU unsuitability.";
+    if (NULL == fPlayback) {
+        if (NULL != reason) {
+            *reason = "Missing playback object.";
+        }
+        return false;
     }
-    return ret;
+
+    return fPlayback->suitableForGpuRasterization(context, reason);
 }
 #endif
 
@@ -642,11 +488,6 @@ static int32_t next_picture_generation_id() {
 }
 
 uint32_t SkPicture::uniqueID() const {
-    if (NULL != fRecord) {
-        SkASSERT(NULL == fPlayback);
-        return SK_InvalidGenID;
-    }
-
     if (SK_InvalidGenID == fUniqueID) {
         fUniqueID = next_picture_generation_id();
     }

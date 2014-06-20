@@ -33,6 +33,7 @@
             4345,  # This is an FYI about a behavior change from long ago.  Chrome stifles it too.
         ],
         'msvs_cygwin_shell': 0,
+        'msvs_disabled_warnings': [4275],
         'msvs_settings': {
           'VCCLCompilerTool': {
             'WarningLevel': '3',
@@ -175,6 +176,7 @@
         'cflags_cc': [
           '-fno-rtti',
           '-Wnon-virtual-dtor',
+          '-Wno-invalid-offsetof',  # GCC <4.6 is old-school strict about what is POD.
         ],
         'conditions': [
           [ 'skia_android_framework==0', {
@@ -240,6 +242,33 @@
               [ 'skia_os != "chromeos"', {
                 'cflags': [
                   '-mfloat-abi=softfp',
+                ],
+              }],
+            ],
+          }],
+          [ 'skia_arch_type == "mips"', {
+            'cflags': [
+              '-EL',
+            ],
+            'conditions': [
+              [ 'mips_arch_variant == "mips32r2"', {
+                'cflags': [
+                  '-march=mips32r2',
+                ],
+                'conditions': [
+                  [ 'mips_dsp == 1', {
+                    'cflags': [
+                      '-mdsp',
+                    ],
+                  }],
+                  [ 'mips_dsp == 2', {
+                    'cflags': [
+                      '-mdspr2',
+                    ],
+                    'defines': [
+                      '__MIPS_HAVE_DSPR2',
+                    ],
+                  }],
                 ],
               }],
             ],
@@ -312,7 +341,6 @@
         'SK_MUTEX_PLATFORM_H "../../src/ports/SkMutex_pthread.h"',
         # Still need to switch Android to the new name for N32.
         'kNative_8888_SkColorType kN32_SkColorType',
-        'SK_SUPPORT_LEGACY_BLURMASKFILTER_STYLE',
         # Needed until we fix skbug.com/2440.
         'SK_SUPPORT_LEGACY_CLIPTOLAYERFLAG',
         # Transitional, for deprecated SkCanvas::SaveFlags methods.
@@ -649,7 +677,6 @@
         'SK_SUPPORT_LEGACY_LAYERRASTERIZER_API=1',
         'SK_SUPPORT_LEGACY_COMPATIBLEDEVICE_CONFIG=1',
         'SK_SUPPORT_LEGACY_GETTOTALCLIP=1',
-        'SK_SUPPORT_LEGACY_DEVICE_CONFIG=1',
       ],
     }],
 

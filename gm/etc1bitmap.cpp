@@ -86,15 +86,14 @@ protected:
     }
 
     virtual SkISize onISize() SK_OVERRIDE {
-        return make_isize(128, 128);
+        return SkISize::Make(128, 128);
     }
 
     virtual SkString fileExtension() const = 0;
 
     virtual void onDraw(SkCanvas* canvas) SK_OVERRIDE {
         SkBitmap bm;
-        SkString filename = SkOSPath::SkPathJoin(
-                INHERITED::gResourcePath.c_str(), "mandrill_128.");
+        SkString filename = SkOSPath::SkPathJoin(INHERITED::gResourcePath, "mandrill_128.");
         filename.append(this->fileExtension());
 
         SkAutoTUnref<SkData> fileData(SkData::NewFromFileName(filename.c_str()));
@@ -163,14 +162,13 @@ protected:
     }
 
     virtual SkISize onISize() SK_OVERRIDE {
-        return make_isize(124, 124);
+        return SkISize::Make(124, 124);
     }
 
     virtual void onDraw(SkCanvas* canvas) SK_OVERRIDE {
 
         SkBitmap bm;
-        SkString filename = SkOSPath::SkPathJoin(
-                INHERITED::gResourcePath.c_str(), "mandrill_128.pkm");
+        SkString filename = SkOSPath::SkPathJoin(INHERITED::gResourcePath, "mandrill_128.pkm");
 
         SkAutoDataUnref fileData(SkData::NewFromFileName(filename.c_str()));
         if (NULL == fileData) {

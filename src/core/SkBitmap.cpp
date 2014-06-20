@@ -91,9 +91,11 @@ void SkBitmap::reset() {
     sk_bzero(this, sizeof(*this));
 }
 
+#ifdef SK_SUPPORT_LEGACY_BITMAP_CONFIG
 SkBitmap::Config SkBitmap::config() const {
     return SkColorTypeToBitmapConfig(fInfo.colorType());
 }
+#endif
 
 #ifdef SK_SUPPORT_LEGACY_COMPUTE_CONFIG_SIZE
 int SkBitmap::ComputeBytesPerPixel(SkBitmap::Config config) {
@@ -217,11 +219,13 @@ bool SkBitmap::setInfo(const SkImageInfo& origInfo, size_t rowBytes) {
     return true;
 }
 
+#ifdef SK_SUPPORT_LEGACY_SETCONFIG
 bool SkBitmap::setConfig(Config config, int width, int height, size_t rowBytes,
                          SkAlphaType alphaType) {
     SkColorType ct = SkBitmapConfigToColorType(config);
     return this->setInfo(SkImageInfo::Make(width, height, ct, alphaType), rowBytes);
 }
+#endif
 
 bool SkBitmap::setAlphaType(SkAlphaType alphaType) {
     if (!validate_alphaType(fInfo.fColorType, alphaType, &alphaType)) {
@@ -293,13 +297,11 @@ SkPixelRef* SkBitmap::setPixelRef(SkPixelRef* pr, int dx, int dy) {
     }
 
     if (fPixelRef != pr) {
-        if (fPixelRef != pr) {
-            this->freePixels();
-            SkASSERT(NULL == fPixelRef);
+        this->freePixels();
+        SkASSERT(NULL == fPixelRef);
 
-            SkSafeRef(pr);
-            fPixelRef = pr;
-        }
+        SkSafeRef(pr);
+        fPixelRef = pr;
         this->updatePixelsFromRef();
     }
 
@@ -828,7 +830,7 @@ bool SkBitmap::extractSubset(SkBitmap* result, const SkIRect& subset) const {
 
     if (fPixelRef->getTexture() != NULL) {
         // Do a deep copy
-        SkPixelRef* pixelRef = fPixelRef->deepCopy(this->config(), &subset);
+        SkPixelRef* pixelRef = fPixelRef->deepCopy(this->colorType(), &subset);
         if (pixelRef != NULL) {
             SkBitmap dst;
             dst.setInfo(SkImageInfo::Make(subset.width(), subset.height(),
@@ -1029,8 +1031,7 @@ bool SkBitmap::copyTo(SkBitmap* dst, SkColorType dstColorType,
 }
 
 bool SkBitmap::deepCopyTo(SkBitmap* dst) const {
-    const SkBitmap::Config dstConfig = this->config();
-    const SkColorType dstCT = SkBitmapConfigToColorType(dstConfig);
+    const SkColorType dstCT = this->colorType();
 
     if (!this->canCopyTo(dstCT)) {
         return false;
@@ -1039,7 +1040,7 @@ bool SkBitmap::deepCopyTo(SkBitmap* dst) const {
     // If we have a PixelRef, and it supports deep copy, use it.
     // Currently supported only by texture-backed bitmaps.
     if (fPixelRef) {
-        SkPixelRef* pixelRef = fPixelRef->deepCopy(dstConfig);
+        SkPixelRef* pixelRef = fPixelRef->deepCopy(dstCT, NULL);
         if (pixelRef) {
             uint32_t rowBytes;
             if (this->colorType() == dstCT) {

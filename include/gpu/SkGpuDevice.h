@@ -71,20 +71,9 @@ public:
 
     virtual GrRenderTarget* accessRenderTarget() SK_OVERRIDE;
 
-    // overrides from SkBaseDevice
-    virtual int width() const SK_OVERRIDE {
-        return NULL == fRenderTarget ? 0 : fRenderTarget->width();
+    virtual SkImageInfo imageInfo() const SK_OVERRIDE {
+        return fRenderTarget ? fRenderTarget->info() : SkImageInfo::MakeUnknown();
     }
-    virtual int height() const SK_OVERRIDE {
-        return NULL == fRenderTarget ? 0 : fRenderTarget->height();
-    }
-    virtual bool isOpaque() const SK_OVERRIDE {
-        return NULL == fRenderTarget ? false
-                                     : kRGB_565_GrPixelConfig == fRenderTarget->config();
-    }
-#ifdef SK_SUPPORT_LEGACY_DEVICE_CONFIG
-    virtual SkBitmap::Config config() const SK_OVERRIDE;
-#endif
 
     virtual void clear(SkColor color) SK_OVERRIDE;
     virtual void drawPaint(const SkDraw&, const SkPaint& paint) SK_OVERRIDE;

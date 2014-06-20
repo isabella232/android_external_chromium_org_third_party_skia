@@ -38,6 +38,7 @@ class SK_API SkBitmap {
 public:
     class SK_API Allocator;
 
+#ifdef SK_SUPPORT_LEGACY_BITMAP_CONFIG
     enum Config {
         kNo_Config,         //!< bitmap has not been configured
         kA8_Config,         //!< 8-bits per pixel, with only alpha specified (0 is transparent, 0xFF is opaque)
@@ -58,6 +59,7 @@ public:
     
     SK_ATTR_DEPRECATED("use config()")
     Config  getConfig() const { return this->config(); }
+#endif
 
     /**
      *  Default construct creates a bitmap with zero width and height, and no pixels.
@@ -266,6 +268,7 @@ public:
     void getBounds(SkRect* bounds) const;
     void getBounds(SkIRect* bounds) const;
 
+#ifdef SK_SUPPORT_LEGACY_SETCONFIG
     /** Set the bitmap's config and dimensions. If rowBytes is 0, then
         ComputeRowBytes() is called to compute the optimal value. This resets
         any pixel/colortable ownership, just like reset().
@@ -276,6 +279,7 @@ public:
         return this->setConfig(config, width, height, rowBytes,
                                kPremul_SkAlphaType);
     }
+#endif
 
     bool setInfo(const SkImageInfo&, size_t rowBytes = 0);
 
@@ -893,11 +897,13 @@ inline SkPMColor SkBitmap::getIndex8Color(int x, int y) const {
     return (*fColorTable)[*((const uint8_t*)fPixels + y * fRowBytes + x)];
 }
 
+#ifdef SK_SUPPORT_LEGACY_BITMAP_CONFIG
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Helpers until we can fully deprecate SkBitmap::Config
 //
 extern SkBitmap::Config SkColorTypeToBitmapConfig(SkColorType);
 extern SkColorType SkBitmapConfigToColorType(SkBitmap::Config);
+#endif
 
 #endif

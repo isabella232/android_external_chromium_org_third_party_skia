@@ -46,7 +46,7 @@ protected:
         return SkString("dashing");
     }
 
-    SkISize onISize() { return skiagm::make_isize(640, 300); }
+    SkISize onISize() { return SkISize::Make(640, 300); }
 
     virtual void onDraw(SkCanvas* canvas) {
         static const struct {
@@ -62,7 +62,6 @@ protected:
 
         canvas->translate(SkIntToScalar(20), SkIntToScalar(20));
         canvas->translate(0, SK_ScalarHalf);
-
         for (int width = 0; width <= 2; ++width) {
             for (size_t data = 0; data < SK_ARRAY_COUNT(gData); ++data) {
                 for (int aa = 0; aa <= 1; ++aa) {
@@ -132,7 +131,7 @@ protected:
         return SkString("dashing2");
     }
 
-    SkISize onISize() { return skiagm::make_isize(640, 480); }
+    SkISize onISize() { return SkISize::Make(640, 480); }
 
     virtual void onDraw(SkCanvas* canvas) {
         static const int gIntervals[] = {
@@ -194,7 +193,7 @@ protected:
         return SkString("dashing3");
     }
 
-    SkISize onISize() { return skiagm::make_isize(640, 480); }
+    SkISize onISize() { return SkISize::Make(640, 480); }
 
     // Draw a 100x100 block of dashed lines. The horizontal ones are BW
     // while the vertical ones are AA.
@@ -234,7 +233,6 @@ protected:
 
             canvas->drawPoints(SkCanvas::kLines_PointMode, 2, pts, p);
         }
-
     }
 
     virtual void onDraw(SkCanvas* canvas) {
@@ -328,7 +326,7 @@ protected:
         return SkString("dashing4");
     }
 
-    SkISize onISize() { return skiagm::make_isize(640, 950); }
+    SkISize onISize() { return SkISize::Make(640, 950); }
 
     virtual void onDraw(SkCanvas* canvas) {
         static const struct {
@@ -372,7 +370,6 @@ protected:
             paint.setAntiAlias(SkToBool(aa));
             paint.setStrokeWidth(8.f);
             paint.setStrokeCap(SkPaint::kSquare_Cap);
-
             // Single dash element that is cut off at start and end
             drawline(canvas, 32, 16, paint, 20.f, 0, 5.f);
             canvas->translate(0, SkIntToScalar(20));
