@@ -16,8 +16,9 @@
         '../tools/sk_tool_utils.cpp',
       ],
       'dependencies': [
-        'skia_lib.gyp:skia_lib',
+        'crash_handler.gyp:CrashHandler',
         'jsoncpp.gyp:jsoncpp',
+        'skia_lib.gyp:skia_lib',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
@@ -30,11 +31,10 @@
       'type': 'executable',
       'include_dirs' : [
         '../src/core',
-        '../src/images',
         '../src/effects',
-        '../src/pipe/utils/',
-        '../src/utils/',
-        '../tools',
+        '../src/images',
+        '../src/pipe/utils',
+        '../src/utils',
       ],
       'includes': [
         'gmslides.gypi',
@@ -47,12 +47,13 @@
         '../src/pipe/utils/SamplePipeControllers.cpp',
       ],
       'dependencies': [
-        'skia_lib.gyp:skia_lib',
+        'etc1.gyp:libetc1',
         'flags.gyp:flags',
         'gm.gyp:gm_expectations',
         'jsoncpp.gyp:jsoncpp',
         'pdf.gyp:pdf',
-        'etc1.gyp:libetc1',
+        'resources.gyp:resources',
+        'skia_lib.gyp:skia_lib',
       ],
       'conditions': [
         ['skia_android_framework', {

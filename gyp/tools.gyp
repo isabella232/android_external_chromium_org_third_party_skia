@@ -286,11 +286,11 @@
       'target_name': 'bench_pictures',
       'type': 'executable',
       'sources': [
+        '../bench/BenchLogger.cpp',
+        '../bench/BenchLogger.h',
         '../bench/ResultsWriter.cpp',
         '../tools/PictureBenchmark.cpp',
         '../tools/PictureResultsWriter.h',
-        '../bench/SkBenchLogger.h',
-        '../bench/SkBenchLogger.cpp',
         '../tools/bench_pictures_main.cpp',
       ],
       'include_dirs': [
@@ -300,11 +300,12 @@
       ],
       'dependencies': [
         'bench.gyp:bench_timer',
+        'crash_handler.gyp:CrashHandler',
         'flags.gyp:flags',
         'jsoncpp.gyp:jsoncpp',
         'skia_lib.gyp:skia_lib',
-        'tools.gyp:picture_utils',
         'tools.gyp:picture_renderer',
+        'tools.gyp:picture_utils',
         'tools.gyp:timer_data',
       ],
     },
@@ -475,7 +476,7 @@
       ],
       'direct_dependent_settings': {
         'include_dirs': [
-        '../tools/',
+          '../tools/',
         ],
       },
     },
